@@ -1,0 +1,2113 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Detector de Colores</title>
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#000000">
+<meta name="color-scheme" content="dark">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="apple-mobile-web-app-title" content="Colores">
+<link rel="apple-touch-icon" href="icon-192.png">
+<style>
+  :root {
+    color-scheme:dark;
+    --bg:#000000; --card:#0d0f13; --line:#252a33; --fg:#f2f4f8; --mut:#9ba5b4;
+    --acc:#6ea1ff; --acc-h:#ffffff; --acc-t:#101c36; --seg:#0d0f13; --hover:#161a21;
+    --ok:#3fb950; --warn:#e3a008; --bad:#ff6b63; --sub:#12151a; --shadow:none;
+    --ease:cubic-bezier(.2,.7,.2,1);
+  }
+  * { box-sizing:border-box; }
+  [hidden] { display:none !important; }
+  html { -webkit-text-size-adjust:100%; }
+  body { margin:0; background:var(--bg); color:var(--fg);
+         font:16px/1.5 "Inter","SF Pro Text",-apple-system,BlinkMacSystemFont,"Segoe UI Variable Text","Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+         -webkit-font-smoothing:antialiased; -moz-osx-font-smoothing:grayscale; text-rendering:optimizeLegibility; font-feature-settings:"tnum" 1,"cv11" 1; }
+  .wrap { max-width:720px; margin:0 auto; padding:0 16px; }
+  header.top { padding:20px 0 12px; }
+  h1 { font-size:1.35rem; font-weight:650; margin:0; letter-spacing:-.01em; }
+  header.top p { margin:4px 0 0; color:var(--mut); font-size:.92rem; }
+  h2 { font-size:.78rem; font-weight:650; text-transform:uppercase; letter-spacing:.06em; color:var(--mut); margin:0 0 10px; }
+  main > * + * { margin-top:12px; }
+
+  /* Selector de modo */
+  .seg { position:relative; display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:2px; background:var(--seg); border:1px solid var(--line); padding:3px; border-radius:11px; }
+  .seg::before { content:""; position:absolute; top:3px; bottom:3px; left:3px; width:calc((100% - 14px) / 4); border-radius:8px; background:#222833;
+                 transition:transform .32s var(--ease); }
+  body[data-mode="detail"] .seg::before { transform:translateX(calc(100% + 2px)); }
+  body[data-mode="cable"] .seg::before { transform:translateX(calc(200% + 4px)); }
+  body[data-mode="resistor"] .seg::before { transform:translateX(calc(300% + 6px)); }
+  .seg button { position:relative; height:40px; padding:0 2px; border:0; background:transparent; color:var(--mut); font-family:inherit; font-size:.88rem; font-weight:600; line-height:1; border-radius:8px; cursor:pointer; transition:color .2s; }
+  .seg button.on { color:var(--fg); }
+
+  /* Tarjetas */
+  .card { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:16px; box-shadow:var(--shadow); }
+  .field + .field, .hint + .field { margin-top:12px; }
+  .field > label { display:block; font-size:.85rem; font-weight:600; margin-bottom:6px; }
+  .hint { margin:6px 0 0; font-size:.84rem; color:var(--mut); line-height:1.4; }
+
+  /* Botones: todos de la misma altura y repartidos en columnas iguales */
+  .grid2, .grid3 { display:grid; gap:8px; }
+  .grid2 { grid-template-columns:repeat(2,1fr); }
+  .grid3 { grid-template-columns:repeat(3,1fr); }
+  .grid2 + .grid2, .grid3 + .grid2, .grid3 + .grid3, .field + .grid2, .field + .grid3 { margin-top:8px; }
+  .btn { display:flex; align-items:center; justify-content:center; min-height:48px; padding:6px 10px; border:1px solid var(--line); border-radius:8px;
+         background:var(--card); color:var(--fg); font-family:inherit; font-size:.92rem; font-weight:600; line-height:1.15; text-align:center; cursor:pointer; user-select:none; -webkit-user-select:none; }
+  .btn:hover { border-color:var(--mut); background:var(--hover); }
+  .btn:focus-visible, .seg button:focus-visible, input:focus-visible, select:focus-visible, summary:focus-visible { outline:2px solid var(--acc); outline-offset:2px; }
+  .btn.primary { background:#f2f4f8; border-color:#f2f4f8; color:#07090c; }
+  .btn.primary:hover { background:#ffffff; border-color:#ffffff; }
+  .btn[aria-pressed="true"] { background:var(--acc-t); border-color:var(--acc); color:var(--acc); }
+  input[type=file] { display:none; }
+  input[type=text], select { width:100%; height:48px; background:var(--card); color:var(--fg); border:1px solid var(--line); border-radius:8px; padding:0 12px; font:inherit; }
+  .search { display:grid; grid-template-columns:1fr 112px; gap:8px; }
+
+  details { margin-top:12px; border-top:1px solid var(--line); padding-top:10px; }
+  summary { cursor:pointer; font-size:.9rem; font-weight:600; list-style:none; display:flex; align-items:center; gap:8px; }
+  summary::-webkit-details-marker { display:none; }
+  summary::before { content:""; width:7px; height:7px; border-right:2px solid var(--mut); border-bottom:2px solid var(--mut); transform:rotate(-45deg); transition:transform .25s var(--ease); flex:none; }
+  details[open] > summary::before { transform:rotate(45deg); }
+  details ol { margin:10px 0 0; padding-left:20px; font-size:.9rem; line-height:1.5; color:var(--mut); }
+  details .field { margin-top:10px; }
+
+  .pins { display:grid; grid-template-columns:repeat(auto-fill,minmax(150px,1fr)); gap:6px; }
+  .pins div { display:flex; align-items:center; gap:8px; background:var(--sub); border:1px solid var(--line); border-radius:8px; padding:6px 8px; font-size:.88rem; }
+  .pins b { color:var(--mut); width:1.1em; font-weight:600; }
+
+  /* Visor */
+  .stage { position:relative; background:#000; border-radius:12px; overflow:hidden; display:none; touch-action:pan-y; border:1px solid var(--line); }
+  .loupe { position:absolute; width:112px; height:112px; border-radius:50%; border:2px solid #fff; box-shadow:0 0 0 2px #000, 0 8px 24px rgba(0,0,0,.65); pointer-events:none; background:#000; z-index:3; }
+  .pins.wide { grid-template-columns:repeat(auto-fill,minmax(230px,1fr)); }
+  .stage.draw { touch-action:none; }
+  .stage canvas, .stage video { display:block; width:100%; height:auto; }
+  .stage canvas.ov { position:absolute; inset:0; width:100%; height:100%; pointer-events:none; }
+  .reticle { position:absolute; left:50%; top:50%; width:44px; height:44px; margin:-22px 0 0 -22px; border:3px solid #fff; border-radius:50%; box-shadow:0 0 0 2px #000, inset 0 0 0 2px #000; pointer-events:none; display:none; }
+
+  /* Resultado */
+  .readout { display:flex; align-items:center; gap:14px; }
+  .sw { width:52px; height:52px; border-radius:8px; border:1px solid rgba(255,255,255,.4); flex:none; background:var(--sub); transition:background-color .3s ease; }
+  .readout .n { font-size:1.35rem; font-weight:650; line-height:1.15; }
+  .readout .d { color:var(--mut); font-size:.88rem; margin-top:3px; }
+
+  ul.list { list-style:none; margin:0; padding:0; display:grid; grid-template-columns:repeat(auto-fill,minmax(220px,1fr)); gap:8px; }
+  .list li { background:var(--card); border:1px solid var(--line); border-radius:10px; padding:10px 12px; display:flex; align-items:center; gap:12px; cursor:pointer; }
+  .list .sw { width:34px; height:34px; }
+  .list b { font-size:.98rem; font-weight:600; }
+  .list small { color:var(--mut); display:block; font-size:.82rem; }
+  .chip { display:inline-block; width:20px; height:20px; border-radius:5px; border:1px solid rgba(255,255,255,.45); vertical-align:middle; flex:none; }
+
+  /* Veredicto del cable */
+  .verdict { background:var(--card); border:1px solid var(--line); border-left:4px solid var(--line); border-radius:10px; padding:14px 16px; font-size:.97rem; line-height:1.5; }
+  .verdict.ok { border-left-color:var(--ok); } .verdict.warn { border-left-color:var(--warn); } .verdict.bad { border-left-color:var(--bad); } .verdict.idle { color:var(--mut); }
+  .verdict ul { margin:8px 0 0; padding-left:20px; font-size:.92rem; }
+  .badge, .tag { display:inline-block; font-size:.72rem; font-weight:700; letter-spacing:.05em; text-transform:uppercase; padding:2px 8px; border-radius:999px; border:1px solid currentColor; vertical-align:middle; }
+  .badge { margin-right:8px; }
+  .badge.ok, .tag.ok { color:var(--ok); } .badge.warn, .tag.warn { color:var(--warn); } .badge.bad, .tag.bad { color:var(--bad); } .tag.idle { color:var(--mut); }
+  .endsum { display:grid; gap:6px; }
+  .endsum div { background:var(--card); border:1px solid var(--line); border-radius:10px; padding:10px 12px; font-size:.92rem; display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+  .crow { list-style:none; background:var(--card); border:1px solid var(--line); border-radius:10px; padding:10px 12px; display:flex; align-items:center; gap:8px; flex-wrap:wrap; font-size:.9rem; }
+  .crow b { width:1.2em; }
+  .crow small { color:var(--mut); }
+  .hist { padding:0; margin:10px 0 0; }
+  .hist li { list-style:none; background:var(--sub); border:1px solid var(--line); border-radius:8px; padding:8px 10px; margin-top:6px; font-size:.85rem; }
+  .tip { color:var(--mut); font-size:.84rem; line-height:1.45; margin:0; }
+  footer { height:32px; }
+
+  /* Animaciones (discretas; se desactivan con «reducir movimiento») */
+  @keyframes rise  { from { opacity:0; transform:translateY(10px); } to { opacity:1; transform:none; } }
+  @keyframes pop   { from { opacity:0; transform:scale(.97); } to { opacity:1; transform:none; } }
+  @keyframes ring  { 0% { box-shadow:0 0 0 0 rgba(110,161,255,.6); } 100% { box-shadow:0 0 0 12px rgba(110,161,255,0); } }
+  @keyframes glow  { 0% { background-color:#1b2230; } 100% { background-color:var(--card); } }
+  @keyframes breath { 0%,100% { transform:scale(1); } 50% { transform:scale(1.14); } }
+  header.top, main > * { animation:rise .5s var(--ease) both; }
+  main > :nth-child(2) { animation-delay:.05s; } main > :nth-child(3) { animation-delay:.1s; }
+  main > :nth-child(4) { animation-delay:.15s; } main > :nth-child(5) { animation-delay:.2s; }
+  .stage { animation:pop .4s var(--ease) both; }
+  ul.list:not(#clist) li { animation:rise .4s var(--ease) both; }
+  ul.list:not(#clist) li:nth-child(2) { animation-delay:.04s; } ul.list:not(#clist) li:nth-child(3) { animation-delay:.08s; }
+  ul.list:not(#clist) li:nth-child(4) { animation-delay:.12s; } ul.list:not(#clist) li:nth-child(5) { animation-delay:.16s; }
+  ul.list:not(#clist) li:nth-child(n+6) { animation-delay:.2s; }
+  .list li { transition:border-color .2s, background-color .2s, transform .15s; }
+  .list li:hover { border-color:var(--mut); background:var(--hover); }
+  .list li.sel { border-color:var(--acc); background:var(--acc-t); }
+  .warn-text { color:var(--warn); font-weight:600; }
+  .help summary { font-size:.92rem; }
+  .help ol { margin:10px 0 0; }
+  .notice { margin-top:10px; padding:10px 12px; border:1px solid var(--warn); border-radius:8px; background:rgba(227,160,8,.08); font-size:.88rem; line-height:1.45; }
+  .ords { display:flex; flex-wrap:wrap; gap:6px; }
+  .ord { display:inline-flex; align-items:center; gap:6px; background:var(--sub); border:1px solid var(--line); border-radius:8px; padding:4px 8px; font-size:.88rem; }
+  .ord b { color:var(--mut); font-weight:600; }
+  .gtitle { font-size:.82rem; color:var(--mut); font-weight:600; text-transform:uppercase; letter-spacing:.05em; }
+  .gwire { display:flex; align-items:center; gap:10px; font-size:1.3rem; margin-top:4px; }
+  .gwire .chip { width:26px; height:26px; }
+  .gbar { height:6px; background:var(--line); border-radius:3px; margin:12px 0 4px; }
+  .gbar i { display:block; height:100%; background:var(--ok); border-radius:3px; transition:width .4s var(--ease); }
+  .stage canvas.ov { transition:opacity .15s; }
+  .list li:active { transform:scale(.985); }
+  .btn { transition:transform .15s var(--ease), background-color .2s, border-color .2s, color .2s; }
+  .btn:active { transform:scale(.97); }
+  .btn.pulse { animation:ring 1.3s ease-out infinite; }
+  .verdict { transition:border-color .3s; }
+  .verdict.flash { animation:glow .9s ease-out; }
+  .reticle { animation:breath 1.8s ease-in-out infinite; }
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation:none !important; transition:none !important; }
+  }
+
+  body.big { font-size:19px; }
+  body.big .btn { min-height:56px; }
+</style>
+</head>
+<body data-mode="simple">
+<header class="top"><div class="wrap">
+  <h1>Detector de colores</h1>
+  <p>Identificación del color de cada elemento a partir de una fotografía.</p>
+</div></header>
+
+<main class="wrap">
+
+  <nav class="seg tabs" aria-label="Modo de análisis">
+    <button data-m="simple" class="on">Simple</button>
+    <button data-m="detail">Detallado</button>
+    <button data-m="cable">Cables</button>
+    <button data-m="resistor">Resistor</button>
+  </nav>
+
+  <div class="card help" data-modes="simple"><details style="margin:0;border:0;padding:0"><summary>¿Cómo se usa?</summary><ol>
+    <li>Haga una foto o elija una imagen.</li>
+    <li>La app indica los colores más destacados y los señala sobre la foto.</li>
+    <li>Escriba un color o una zona en «Búsqueda» para centrar el resultado en eso.</li>
+    <li>Toque un punto de la foto para ver su color exacto.</li>
+  </ol></details></div>
+  <div class="card help" data-modes="detail" hidden><details style="margin:0;border:0;padding:0"><summary>¿Cómo se usa?</summary><ol>
+    <li>Haga una foto: cada color aparece con un marcador numerado.</li>
+    <li>Toque un marcador o una fila de la lista para ver el nombre y el contorno de ese color.</li>
+    <li>Mantenga pulsado sobre la foto para verla sin marcas.</li>
+    <li>«Patrones» dibuja una trama distinta sobre cada color; «Comparar» dice si dos puntos son el mismo color.</li>
+    <li>Con «Mis colores» puede guardar un color y comprobar después si otro punto coincide.</li>
+  </ol></details></div>
+  <div class="card help" data-modes="cable" hidden><details style="margin:0;border:0;padding:0"><summary>¿Cómo se usa?</summary><ol>
+    <li>Elija el tipo de cable y el extremo que va a revisar.</li>
+    <li>Coloque los hilos planos y rectos sobre un fondo liso y oscuro, con buena luz.</li>
+    <li>Haga la foto: los hilos se detectan solos y se comparan con el orden correcto.</li>
+    <li>Si aparece un aviso de posible fallo, toque el hilo dudoso para confirmarlo o corríjalo tocándolo otra vez.</li>
+    <li>«Asistente de crimpado» le guía hilo a hilo con la cámara en vivo.</li>
+  </ol></details></div>
+  <div class="card help" data-modes="resistor" hidden><details style="margin:0;border:0;padding:0"><summary>¿Cómo se usa?</summary><ol>
+    <li>Fotografíe la resistencia de cerca, sobre un fondo liso y con buena luz.</li>
+    <li>Con la cámara en vivo, llene el recuadro guía con la resistencia.</li>
+    <li>Compruebe las bandas detectadas; toque una para cambiar su color si se ha leído mal.</li>
+    <li>Si hay aviso de posible fallo, use «Contrastar con otra foto». Mida siempre con un polímetro.</li>
+  </ol></details></div>
+
+  <section class="card">
+    <h2>Imagen</h2>
+    <div class="grid3">
+      <label class="btn primary">Hacer foto<input id="fCam" type="file" accept="image/*" capture="environment"></label>
+      <label class="btn">Elegir imagen<input id="fPick" type="file" accept="image/*"></label>
+      <button class="btn" id="bLive" type="button">Cámara en vivo</button>
+    </div>
+    <div class="grid3" id="liveBtns" hidden>
+      <button class="btn primary" id="bShot" type="button">Capturar imagen</button>
+      <button class="btn" id="bLed" type="button" aria-pressed="false">Modo LED</button>
+      <button class="btn" id="bStop" type="button">Cerrar cámara</button>
+    </div>
+    <details open>
+      <summary>Opciones de lectura</summary>
+      <div class="grid2" style="margin-top:10px">
+        <button class="btn" id="bWB" type="button" aria-pressed="false">Calibrar luz</button>
+        <button class="btn" id="bBig" type="button" aria-pressed="false">Letra grande</button>
+        <button class="btn" id="bVoz" type="button" aria-pressed="false">Voz</button>
+        <button class="btn" id="bSnd" type="button" aria-pressed="false">Sonido y vibración</button>
+      </div>
+      <div class="grid3" data-modes="simple detail">
+        <button class="btn" id="bLab" type="button" aria-pressed="true">Marcadores</button>
+        <button class="btn" id="bPat" type="button" aria-pressed="false">Patrones</button>
+        <button class="btn" id="bCmp" type="button" aria-pressed="false">Comparar</button>
+      </div>
+      <p class="hint">Calibrar luz: pulse y toque una zona blanca o gris para corregir el tono de la iluminación. Marcadores: números sobre la foto; toque uno para ver su nombre. Patrones: cada color con su propio dibujo. Comparar: toque dos puntos para saber si son el mismo color. Mantener pulsado sobre la foto la muestra sin marcas.</p>
+    </details>
+  </section>
+
+  <!-- Búsqueda (modos Simple y Detallado) -->
+  <section class="card" data-modes="simple detail">
+    <h2>Búsqueda</h2>
+    <div class="search">
+      <input type="text" id="q" placeholder="Color o zona (opcional)" autocomplete="off" aria-label="Color o zona a buscar">
+      <button class="btn" id="bQ" type="button">Buscar</button>
+    </div>
+    <p class="hint">Ejemplos: «azul», «abajo a la izquierda», «solo el verde».</p>
+  </section>
+
+  <!-- Configuración de cable -->
+  <section class="card" data-modes="cable" hidden>
+    <h2>Configuración del cable</h2>
+    <div class="field">
+      <label for="preset">Tipo de cable</label>
+      <select id="preset"></select>
+    </div>
+    <div class="field" id="endBox" hidden>
+      <label for="end">Extremo que se revisa</label>
+      <select id="end"></select>
+    </div>
+    <div class="field">
+      <label for="orient">Disposición de los hilos en la foto</label>
+      <select id="orient">
+        <option value="v">Verticales, de izquierda a derecha</option>
+        <option value="h">Horizontales, de arriba a abajo</option>
+      </select>
+    </div>
+    <p class="hint" id="presetNote"></p>
+    <div class="field">
+      <label>Orden correcto</label>
+      <div class="pins" id="pins"></div>
+    </div>
+    <div class="grid2">
+      <button class="btn" id="bAuto" type="button">Detectar hilos</button>
+      <button class="btn" id="bSave" type="button">Guardar resultado</button>
+      <button class="btn" id="bGuide" type="button" aria-pressed="false">Asistente de crimpado</button>
+      <button class="btn" id="bRead" type="button">Leer orden en voz alta</button>
+      <button class="btn" id="bShare" type="button">Compartir resultado</button>
+      <button class="btn" id="bImg" type="button">Descargar imagen</button>
+    </div>
+    <details><summary>Instrucciones de crimpado</summary><ol id="steps"></ol></details>
+  </section>
+
+  <section class="card" data-modes="resistor" hidden>
+    <h2>Resistencia</h2>
+    <div class="field">
+      <label for="rBands">Número de bandas</label>
+      <select id="rBands">
+        <option value="0">Detectar automáticamente</option>
+        <option value="4">4 bandas</option>
+        <option value="5">5 bandas</option>
+      </select>
+    </div>
+    <div class="grid2" style="margin-top:12px">
+      <button class="btn" id="bResAuto" type="button">Detectar resistencia</button>
+      <button class="btn" id="bResRead" type="button">Leer valor en voz alta</button>
+      <button class="btn" id="bResCmp" type="button">Contrastar con otra foto</button>
+      <button class="btn" id="bResShare" type="button">Compartir resultado</button>
+    </div>
+    <p class="hint">Función experimental. Con la cámara en vivo aparece un recuadro guía: llénelo con la resistencia. Fotografíela de cerca, en horizontal o en vertical, sobre un fondo liso y con buena luz. Si aparece un aviso de posible fallo, toque las bandas dudosas para corregirlas o use «Contrastar con otra foto». Compruebe siempre el valor con un polímetro.</p>
+  </section>
+
+  <section class="card" id="guideCard" hidden>
+    <h2>Asistente de crimpado</h2>
+    <div id="guideStep"></div>
+  </section>
+
+  <div class="stage" id="liveStage">
+    <video id="vid" playsinline muted></video>
+    <canvas id="liveOv" class="ov"></canvas>
+    <div class="reticle" id="ret"></div>
+  </div>
+
+  <div class="stage" id="imgStage">
+    <canvas id="cv"></canvas>
+    <canvas id="ov" class="ov"></canvas>
+    <canvas id="loupe" class="loupe" width="112" height="112" hidden></canvas>
+  </div>
+
+  <section class="card readout" id="readout">
+    <div class="sw" id="rSw"></div>
+    <div><div class="n" id="rName">Sin resultado</div><div class="d" id="rDet">Haga una foto o active la cámara en vivo.</div></div>
+  </section>
+
+  <div id="cableOut" data-modes="cable" hidden>
+    <div class="verdict idle" id="verdict">Haga la foto y dibuje con el dedo un recuadro sobre los hilos. Se compararán con el orden correcto.</div>
+    <div class="card" id="orderCard" style="margin-top:12px" hidden><h2>Orden detectado</h2><div id="orderText"></div></div>
+    <div class="endsum" id="endsum" style="margin-top:12px"></div>
+    <ul class="list" id="clist" style="margin-top:12px;grid-template-columns:1fr"></ul>
+    <details class="card" style="margin-top:12px">
+      <summary>Historial guardado</summary>
+      <ul class="hist" id="hist"></ul>
+      <div class="grid2" style="margin-top:12px">
+        <button class="btn" id="bExport" type="button">Exportar CSV</button>
+        <button class="btn" id="bClear" type="button">Borrar historial</button>
+      </div>
+    </details>
+  </div>
+
+  <div id="resOut" data-modes="resistor" hidden>
+    <div class="verdict idle" id="resVerdict">Haga la foto de la resistencia de cerca y pulse «Detectar resistencia».</div>
+    <ul class="list" id="resList" style="margin-top:12px;grid-template-columns:1fr"></ul>
+  </div>
+
+  <ul class="list" id="list" data-modes="simple detail"></ul>
+
+  <section class="card" data-modes="simple detail">
+    <h2>Mis colores</h2>
+    <div class="search">
+      <input type="text" id="favName" placeholder="Nombre (p. ej. verde de mi cable)" autocomplete="off" aria-label="Nombre del color a guardar">
+      <button class="btn" id="bFavAdd" type="button">Guardar</button>
+    </div>
+    <p class="hint">Toque un punto de la foto y pulse «Guardar» para guardar ese color. Toque uno guardado para usarlo como referencia: los puntos que toque después se compararán con él.</p>
+    <ul class="list" id="favList" style="margin-top:12px;grid-template-columns:1fr"></ul>
+  </section>
+
+  <p class="tip" data-modes="simple detail">La iluminación altera los colores: una luz amarillenta hace que el blanco parezca crema. Se obtienen mejores resultados con luz blanca y sin reflejos.</p>
+  <p class="tip" data-modes="cable" hidden>Coloque los hilos planos y rectos sobre un fondo liso y mate, mejor oscuro o gris, con buena luz y sin sombras. Haga la foto desde arriba. Toque un hilo dentro del recuadro para corregir manualmente una detección errónea.</p>
+</main>
+<footer></footer>
+
+<script>
+'use strict';
+if ('serviceWorker' in navigator && location.protocol !== 'file:') navigator.serviceWorker.register('sw.js').catch(() => {});
+
+const $ = id => document.getElementById(id);
+const cv = $('cv'), ov = $('ov'), ctx = cv.getContext('2d', { willReadFrequently:true }), octx = ov.getContext('2d');
+const vid = $('vid'), stage = $('imgStage');
+let stream = null, liveTimer = null, marker = null;
+let mode = 'simple', hasImage = false;
+let regions = [], lastLab = null;
+let cableRect = null, overrides = [], lastCable = null, endResults = {}, cableNote = '', resOv = [];
+let origCanvas = null, calibrating = false, wbGain = [1,1,1], voice = false, labelsOn = true;
+
+const store = {
+  get(k) { try { return localStorage.getItem(k); } catch (_) { return null; } },
+  set(k, v) { try { localStorage.setItem(k, v); } catch (_) {} }
+};
+const bigK = () => document.body.classList.contains('big') ? 1.35 : 1;
+
+/* ================= Nombre de color ================= */
+function rgb2hsl(r, g, b) {
+  r/=255; g/=255; b/=255;
+  const mx = Math.max(r,g,b), mn = Math.min(r,g,b), l = (mx+mn)/2, d = mx-mn;
+  let h = 0, s = 0;
+  if (d) {
+    s = d / (1 - Math.abs(2*l - 1));
+    if (mx === r) h = ((g-b)/d) % 6; else if (mx === g) h = (b-r)/d + 2; else h = (r-g)/d + 4;
+    h *= 60; if (h < 0) h += 360;
+  }
+  return [h, s, l];
+}
+
+// { base, full }: "base" agrupa zonas; "full" añade claro/oscuro.
+function colorName(r, g, b) {
+  const [h, s, l] = rgb2hsl(r, g, b);
+  const mx = Math.max(r,g,b);
+  if (mx < 35 || l < 0.08) return { base:'negro', full:'negro' };
+  if (s < 0.14 || (mx - Math.min(r,g,b)) < 16) {
+    if (l > 0.84) return { base:'blanco', full:'blanco' };
+    if (l > 0.62) return { base:'gris', full:'gris claro' };
+    if (l < 0.30) return { base:'gris', full:'gris oscuro' };
+    return { base:'gris', full:'gris' };
+  }
+  let base;
+  if (h < 16 || h >= 345) base = l > 0.76 ? 'rosa' : 'rojo';
+  else if (h < 45) base = l < 0.40 ? 'marrón' : (l > 0.80 ? 'beige' : 'naranja');
+  else if (h < 70) base = l < 0.33 ? 'oliva' : 'amarillo';
+  else if (h < 95) base = 'verde lima';
+  else if (h < 165) base = 'verde';
+  else if (h < 200) base = 'turquesa';
+  else if (h < 225) base = l > 0.58 ? 'celeste' : 'azul';
+  else if (h < 262) base = 'azul';
+  else if (h < 295) base = 'violeta';
+  else if (h < 330) base = l > 0.75 ? 'rosa' : 'magenta';
+  else base = l > 0.6 ? 'rosa' : 'magenta';
+  let full = base;
+  if (!['rosa','beige','celeste','marrón','oliva','negro','blanco'].includes(base)) {
+    if (l > 0.70) full = base + ' claro';
+    else if (l < 0.26) full = base + ' oscuro';
+  }
+  return { base, full };
+}
+
+const hex = (r,g,b) => '#' + [r,g,b].map(v => v.toString(16).padStart(2,'0')).join('');
+const cap = s => s.charAt(0).toUpperCase() + s.slice(1);
+const avg = d => {
+  let r=0, g=0, b=0; const n = d.length/4;
+  for (let i = 0; i < d.length; i += 4) { r+=d[i]; g+=d[i+1]; b+=d[i+2]; }
+  return [Math.round(r/n), Math.round(g/n), Math.round(b/n)];
+};
+
+const HUE_EDGES = [16, 45, 70, 95, 165, 200, 225, 262, 295, 330, 345];
+function hsl2rgb(h, s, l) {
+  const a = s * Math.min(l, 1 - l);
+  const f = n => { const k = (n + h/30) % 12; return l - a * Math.max(-1, Math.min(k - 3, 9 - k, 1)); };
+  return [f(0), f(8), f(4)].map(v => Math.round(v * 255));
+}
+// Aviso si el color está pegado a la frontera entre dos nombres (fácil de confundir).
+function dudoso(rgb) {
+  const [h, s, l] = rgb2hsl(...rgb);
+  if (s < 0.14 || l < 0.1) return '';
+  const me = colorName(...rgb).base;
+  for (const e of HUE_EDGES) {
+    const d = Math.min(Math.abs(h - e), 360 - Math.abs(h - e));
+    if (d > 7) continue;
+    const o1 = colorName(...hsl2rgb((e - 9 + 360) % 360, s, l)).base, o2 = colorName(...hsl2rgb((e + 9) % 360, s, l)).base;
+    const other = o1 === me ? o2 : o1;
+    if (other !== me) return `Dudoso: entre ${me} y ${other}`;
+  }
+  if ((me === 'marrón' || me === 'naranja') && Math.abs(l - 0.40) < 0.04) return 'Dudoso: entre marrón y naranja';
+  return '';
+}
+
+// Aviso de posible fallo: lista de motivos por los que un resultado podría ser incorrecto.
+const noticeHtml = reasons => reasons.length
+  ? `<div class="notice"><b>Es posible que este resultado haya fallado.</b> ${reasons.length > 1 ? 'Motivos' : 'Motivo'}: ${reasons.join('; ')}. Revíselo antes de fiarse de él.</div>` : '';
+
+function show(rgb, extra, varr = 0) {
+  const n = colorName(...rgb), cf = CONFUSE[n.base], rs = colorReasons(rgb, varr), det = $('rDet');
+  $('rSw').style.background = hex(...rgb);
+  $('rName').textContent = cap(n.full);
+  det.textContent = `${extra ? extra + ' · ' : ''}${hex(...rgb)} · RGB ${rgb.join(', ')}${cf ? ' · Se confunde a menudo con ' + cf.join(', ') : ''}`;
+  if (rs.length) {                                                     // aviso de posible fallo, destacado
+    const sp = document.createElement('span'); sp.className = 'warn-text';
+    sp.textContent = ' · Aviso: es posible que este nombre no sea correcto (' + rs.join('; ') + ')';
+    det.appendChild(sp);
+  }
+}
+// Motivos por los que el nombre de un color podría no ser fiable.
+function colorReasons(rgb, varr) {
+  const r = [], dd = dudoso(rgb);
+  if (Math.max(...rgb) < 40) r.push('zona muy oscura, casi sin información de color');
+  if (Math.min(...rgb) > 238) r.push('zona casi blanca: puede estar saturada por exceso de luz');
+  if (dd) r.push('el tono está en el límite ' + dd.replace('Dudoso: ', ''));
+  if (varr > 30) r.push('la zona tocada mezcla varios colores: toque un punto más uniforme');
+  return r;
+}
+
+/* ================= Voz, letra grande y calibración de luz ================= */
+function speak(txt, force) {                       // force: el usuario pidió explícitamente la lectura (aunque la voz esté desactivada)
+  if ((!voice && !force) || !('speechSynthesis' in window)) return;
+  try {
+    speechSynthesis.cancel();
+    const u = new SpeechSynthesisUtterance(txt); u.lang = 'es-ES';
+    speechSynthesis.speak(u);
+  } catch (_) {}
+}
+function flash(el) { el.classList.remove('flash'); void el.offsetWidth; el.classList.add('flash'); }
+function speakVerdict() {
+  flash($('verdict'));
+  speak($('verdict').innerText.replace(/[^\p{L}\p{N}\s.,:¡!¿?()-]/gu, '').replace(/\s+/g, ' ').slice(0, 240));
+}
+function speakSummary() {
+  if (!voice || mode === 'cable' || !hasImage) return;
+  const { q, rs } = visibleRegions();
+  if (!rs.length) return speak(q.any ? 'No veo eso en la foto' : 'No he detectado zonas claras');
+  const names = groupRegions(rs).map(g => g.name.full).slice(0, 4);
+  speak(q.any ? names.join(', ')
+    : names.length > 1 ? `Lo más destacado: ${names[0]}. También hay ${names.slice(1).join(', ')}` : `Lo más destacado: ${names[0]}`);
+}
+function updToggles() {
+  $('bVoz').setAttribute('aria-pressed', String(voice));
+  $('bBig').setAttribute('aria-pressed', String(document.body.classList.contains('big')));
+  $('bLab').setAttribute('aria-pressed', String(labelsOn));
+  $('bPat').setAttribute('aria-pressed', String(patternsOn));
+  $('bCmp').setAttribute('aria-pressed', String(cmp.on));
+  $('bSnd').setAttribute('aria-pressed', String(soundOn));
+}
+$('bPat').onclick = () => { patternsOn = !patternsOn; store.set('pat', patternsOn ? '1' : '0'); updToggles(); renderView(); };
+$('bCmp').onclick = () => {
+  cmp.on = !cmp.on; cmp.pts = []; marker = null; updToggles(); renderView();
+  if (cmp.on) $('rDet').textContent = 'Toque dos puntos de la foto para compararlos.';
+};
+$('bLab').onclick = () => { labelsOn = !labelsOn; store.set('lab', labelsOn ? '1' : '0'); updToggles(); renderView(); };
+$('bVoz').onclick = () => {
+  voice = !voice; store.set('voz', voice ? '1' : '0'); updToggles();
+  if (voice) speak('Voz activada'); else try { speechSynthesis.cancel(); } catch (_) {}
+};
+$('bBig').onclick = () => {
+  document.body.classList.toggle('big'); store.set('big', document.body.classList.contains('big') ? '1' : '0');
+  updToggles(); renderView();
+};
+
+const gain = rgb => rgb.map((v, i) => Math.min(255, Math.round(v * wbGain[i])));
+function paintCorrected() {
+  ctx.drawImage(origCanvas, 0, 0);
+  if (wbGain.every(g => g === 1)) return;
+  const id = ctx.getImageData(0, 0, cv.width, cv.height), d = id.data;
+  for (let i = 0; i < d.length; i += 4) {
+    d[i] = Math.min(255, d[i] * wbGain[0]); d[i+1] = Math.min(255, d[i+1] * wbGain[1]); d[i+2] = Math.min(255, d[i+2] * wbGain[2]);
+  }
+  ctx.putImageData(id, 0, 0);
+}
+function updWB() {
+  const on = wbGain.some(g => g !== 1);
+  $('bWB').textContent = calibrating ? 'Toque un punto blanco' : on ? 'Quitar calibración' : 'Calibrar luz';
+  $('bWB').setAttribute('aria-pressed', String(calibrating || on));
+  $('bWB').classList.toggle('pulse', calibrating);
+}
+$('bWB').onclick = () => {
+  if (calibrating) calibrating = false;
+  else if (wbGain.some(g => g !== 1)) { wbGain = [1,1,1]; if (hasImage) { paintCorrected(); analyze(); renderView(); } }
+  else if (!hasImage) { $('rDet').textContent = 'Primero haga o elija una foto.'; return; }
+  else { calibrating = true; $('rDet').textContent = 'Toque en la foto un punto blanco o gris.'; }
+  updWB();
+};
+function calibrate(p) {
+  const rad = 4, o = origCanvas.getContext('2d', { willReadFrequently:true });
+  const x0 = Math.max(0, Math.round(p.x) - rad), y0 = Math.max(0, Math.round(p.y) - rad);
+  const w = Math.min(cv.width - x0, rad*2 + 1), h = Math.min(cv.height - y0, rad*2 + 1);
+  const [r, g, b] = avg(o.getImageData(x0, y0, w, h).data), [, s, l] = rgb2hsl(r, g, b);
+  if (s > 0.35 || l < 0.2) { $('rDet').textContent = 'Ese punto no parece blanco ni gris. Pruebe con otro (un folio, una pared blanca).'; return; }
+  calibrating = false;
+  const m = (r + g + b) / 3;
+  wbGain = [m/r, m/g, m/b].map(v => Math.min(2, Math.max(0.5, v)));
+  updWB(); paintCorrected(); analyze(); renderView(); speakSummary();
+}
+
+/* ================= Modos ================= */
+function applyMode(m) {
+  mode = m;
+  document.body.dataset.mode = m;
+  document.querySelectorAll('.tabs button').forEach(b => b.classList.toggle('on', b.dataset.m === m));
+  document.querySelectorAll('[data-modes]').forEach(el => { el.hidden = !el.dataset.modes.split(' ').includes(m); });
+  stage.classList.toggle('draw', m === 'cable' || m === 'resistor');
+  selGroup = null; if (m === 'cable' || m === 'resistor') { cmp.on = false; cmp.pts = []; updToggles(); }
+  if (m !== 'cable' && guide) stopGuide();
+  syncReadout();
+  renderView();
+}
+document.querySelectorAll('.tabs button').forEach(b => b.onclick = () => applyMode(b.dataset.m));
+// En Cables, el cuadro de color solo se usa con la cámara en vivo.
+function syncReadout() { $('readout').hidden = (mode === 'cable' || mode === 'resistor') && !stream; }
+
+/* ================= Carga de imagen ================= */
+async function loadFile(file) {
+  if (!file) return;
+  stopLive();
+  let bmp;
+  try { bmp = await createImageBitmap(file, { imageOrientation:'from-image' }); }
+  catch (_) {   // Safari antiguo: <img> aplica la orientación EXIF por sí solo
+    bmp = await new Promise((ok, fail) => {
+      const im = new Image(); im.onload = () => ok(im); im.onerror = fail; im.src = URL.createObjectURL(file);
+    });
+  }
+  drawSource(bmp, bmp.width || bmp.naturalWidth, bmp.height || bmp.naturalHeight);
+}
+
+function drawSource(src, w, h) {
+  const k = Math.min(1, 1280 / Math.max(w, h));
+  cv.width = ov.width = Math.round(w*k);
+  cv.height = ov.height = Math.round(h*k);
+  origCanvas = document.createElement('canvas'); origCanvas.width = cv.width; origCanvas.height = cv.height;
+  origCanvas.getContext('2d', { willReadFrequently:true }).drawImage(src, 0, 0, cv.width, cv.height);
+  paintCorrected();
+  stage.style.display = 'block';
+  hasImage = true; marker = null; cableRect = null; overrides = []; lastCable = null; selGroup = null; cmp.pts = []; resOv = []; cableNote = ''; photoId++; if (resCmp && resCmp.result) resCmp = null;
+  analyze();
+  renderView();
+  speakSummary();
+  if (mode === 'cable') autoDetect(); else if (mode === 'resistor') autoDetectRes();
+  stage.scrollIntoView({ behavior:'smooth', block:'start' });
+}
+
+$('fCam').onchange = e => { loadFile(e.target.files[0]); e.target.value = ''; };
+$('fPick').onchange = e => { loadFile(e.target.files[0]); e.target.value = ''; };
+
+/* ================= Análisis por zonas (simple / detallado) ================= */
+function analyze() {
+  const k = 220 / Math.max(cv.width, cv.height);
+  const W = Math.max(1, Math.round(cv.width*k)), H = Math.max(1, Math.round(cv.height*k));
+  const t = document.createElement('canvas'); t.width = W; t.height = H;
+  const tc = t.getContext('2d', { willReadFrequently:true });
+  tc.imageSmoothingQuality = 'high';
+  tc.drawImage(cv, 0, 0, W, H);
+  const px = tc.getImageData(0, 0, W, H).data;
+
+  const ids = new Map(), baseOf = new Int16Array(W*H), bases = [];
+  for (let i = 0; i < W*H; i++) {
+    const b = colorName(px[i*4], px[i*4+1], px[i*4+2]).base;
+    if (!ids.has(b)) { ids.set(b, bases.length); bases.push(b); }
+    baseOf[i] = ids.get(b);
+  }
+
+  const label = new Int32Array(W*H).fill(-1);
+  const minArea = Math.max(12, W*H*0.004);
+  const found = [], stack = [];
+  for (let s0 = 0; s0 < W*H; s0++) {
+    if (label[s0] !== -1) continue;
+    const id = found.length, bid = baseOf[s0], pix = [];
+    stack.push(s0); label[s0] = id;
+    while (stack.length) {
+      const p = stack.pop(); pix.push(p);
+      const x = p % W, y = (p / W) | 0;
+      if (x > 0   && label[p-1] === -1 && baseOf[p-1] === bid) { label[p-1] = id; stack.push(p-1); }
+      if (x < W-1 && label[p+1] === -1 && baseOf[p+1] === bid) { label[p+1] = id; stack.push(p+1); }
+      if (y > 0   && label[p-W] === -1 && baseOf[p-W] === bid) { label[p-W] = id; stack.push(p-W); }
+      if (y < H-1 && label[p+W] === -1 && baseOf[p+W] === bid) { label[p+W] = id; stack.push(p+W); }
+    }
+    found.push({ id, pix });
+  }
+
+  // Distancia de cada píxel al borde de su zona (dos pasadas): sirve para colocar el marcador en el punto más interior.
+  const dist = new Float32Array(W*H);
+  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+    const p = y*W + x, l = label[p];
+    dist[p] = (x === 0 || y === 0 || x === W-1 || y === H-1 || label[p-1] !== l || label[p+1] !== l || label[p-W] !== l || label[p+W] !== l) ? 0 : 1e6;
+  }
+  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+    const p = y*W + x; let d = dist[p]; if (!d) continue;
+    if (x > 0) d = Math.min(d, dist[p-1] + 1);
+    if (y > 0) { d = Math.min(d, dist[p-W] + 1); if (x > 0) d = Math.min(d, dist[p-W-1] + 1.41); if (x < W-1) d = Math.min(d, dist[p-W+1] + 1.41); }
+    dist[p] = d;
+  }
+  for (let y = H-1; y >= 0; y--) for (let x = W-1; x >= 0; x--) {
+    const p = y*W + x; let d = dist[p]; if (!d) continue;
+    if (x < W-1) d = Math.min(d, dist[p+1] + 1);
+    if (y < H-1) { d = Math.min(d, dist[p+W] + 1); if (x < W-1) d = Math.min(d, dist[p+W+1] + 1.41); if (x > 0) d = Math.min(d, dist[p+W-1] + 1.41); }
+    dist[p] = d;
+  }
+
+  regions = found.filter(r => r.pix.length >= minArea).sort((a,b) => b.pix.length - a.pix.length).slice(0, 14);
+  for (const r of regions) {
+    let sr=0, sg=0, sb=0, sx=0, sy=0;
+    for (const p of r.pix) { sr+=px[p*4]; sg+=px[p*4+1]; sb+=px[p*4+2]; sx+=p%W; sy+=(p/W)|0; }
+    const n = r.pix.length;
+    r.rgb = [Math.round(sr/n), Math.round(sg/n), Math.round(sb/n)];
+    r.name = colorName(...r.rgb);
+    r.pct = 100 * n / (W*H);
+    const cx = sx/n, cy = sy/n;
+    r.cx = (cx + 0.5) / W; r.cy = (cy + 0.5) / H;
+    // Punto más interior de la zona (el más lejos de su borde; a igualdad, el más cercano al centro): ahí el marcador tapa menos
+    let best = r.pix[0], bdist = -1, bc = Infinity;
+    for (const p of r.pix) {
+      const dd = dist[p], dc = (p%W-cx)**2 + (((p/W)|0)-cy)**2;
+      if (dd > bdist + 0.01 || (Math.abs(dd - bdist) <= 0.01 && dc < bc)) { bdist = dd; bc = dc; best = p; }
+    }
+    r.lx = (best % W + 0.5) / W; r.ly = (((best / W) | 0) + 0.5) / H;
+  }
+  lastLab = { W, H, label };
+}
+
+/* ---------- Pregunta en texto ---------- */
+const norm = s => s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+const WORDS = {
+  rojo:['rojo'], naranja:['naranja'], amarillo:['amarillo'],
+  verde:['verde','verde lima','oliva'], lima:['verde lima'], oliva:['oliva'],
+  azul:['azul','celeste','turquesa'], celeste:['celeste'], turquesa:['turquesa'],
+  violeta:['violeta'], morado:['violeta'], lila:['violeta'],
+  rosa:['rosa','magenta'], magenta:['magenta'],
+  marron:['marrón'], cafe:['marrón'], negro:['negro'], blanco:['blanco'], gris:['gris'], beige:['beige']
+};
+function parseQuery(text) {
+  const t = norm(text), q = { colors:[], pos:[] };
+  for (const w of Object.keys(WORDS)) if (new RegExp('\\b' + w + '\\b').test(t)) q.colors.push(...WORDS[w]);
+  for (const [re, p] of [[/izquierda/, 'izq'], [/derecha/, 'der'], [/arriba|superior/, 'arr'], [/abajo|inferior/, 'aba'], [/centro|medio|mitad/, 'cen']])
+    if (re.test(t)) q.pos.push(p);
+  q.any = q.colors.length > 0 || q.pos.length > 0;
+  return q;
+}
+const inPos = (p, r) => ({ izq:r.cx < 0.4, der:r.cx > 0.6, arr:r.cy < 0.4, aba:r.cy > 0.6,
+                           cen:Math.abs(r.cx-.5) < .2 && Math.abs(r.cy-.5) < .2 })[p];
+
+function importance(r) {
+  const neutral = ['gris','blanco','negro','beige'].includes(r.name.base);
+  // lo neutro y lo enorme suele ser el fondo (mesa, pared): que pese poco frente a un objeto de color
+  return r.pct * (neutral ? 0.12 : 1) * (r.pct > 45 ? 0.4 : 1) * (1.2 - Math.hypot(r.cx-.5, r.cy-.5));
+}
+
+function visibleRegions() {
+  const q = parseQuery($('q').value);
+  if (q.any) {
+    return { q, rs: regions.filter(r => (!q.colors.length || q.colors.includes(r.name.base)) && q.pos.every(p => inPos(p, r))).slice(0, 8) };
+  }
+  if (mode === 'simple') return { q, rs: regions.filter(r => r.pct >= 1.5).sort((a,b) => importance(b) - importance(a)).slice(0, 3) };
+  return { q, rs: regions.filter(r => r.pct >= 0.8) };      // sin las manchas diminutas del fondo
+}
+
+/* ================= Vista simple / detallada ================= */
+function renderView() {
+  if (!hasImage) return;
+  if (mode === 'cable') { renderCable(); return; }
+  if (mode === 'resistor') { renderResistor(); return; }
+  const { q, rs } = visibleRegions(), gs = groupRegions(rs);
+  lastGroups = gs;
+  drawOverlay(rs, gs);
+  renderList(gs, q);
+}
+
+// Zonas del mismo color (aunque estén separadas) se agrupan: una sola etiqueta y una sola fila.
+function groupRegions(rs) {
+  const m = new Map();
+  for (const r of rs) {
+    if (!m.has(r.name.base)) m.set(r.name.base, { name:r.name, rgb:r.rgb, pct:0, n:0, big:r, regions:[] });
+    const g = m.get(r.name.base);
+    g.pct += r.pct; g.n++; g.regions.push(r);
+    if (r.pct > g.big.pct) { g.big = r; g.rgb = r.rgb; g.name = r.name; }
+  }
+  return [...m.values()];
+}
+
+/* ---------- Selección, patrones, marcadores y comparación ---------- */
+let selGroup = null, patternsOn = false, markersHit = [], lastGroups = [], holdTimer = null, holdHid = false;
+const cmp = { on:false, pts:[] };
+const PATTERN = { rojo:'/', naranja:'\\', amarillo:'-', 'verde lima':'|', verde:'|', oliva:'-', turquesa:'o', celeste:'o', azul:'+', violeta:'x', magenta:'x', rosa:'/', 'marrón':'.' };
+const PATTERN_NAME = { '/':'rayas diagonales /', '\\':'rayas diagonales \\', '-':'rayas horizontales', '|':'rayas verticales', '+':'cuadrícula', 'x':'aspas', '.':'puntos', 'o':'círculos' };
+// Colores que un daltónico suele confundir (sobre todo rojo/verde/marrón/naranja)
+const CONFUSE = { rojo:['verde','marrón'], verde:['rojo','marrón','naranja'], 'verde lima':['amarillo','naranja'], oliva:['marrón','verde'], 'marrón':['verde','rojo'],
+                  naranja:['verde','amarillo'], amarillo:['verde lima','naranja'], azul:['violeta'], celeste:['gris','rosa'], violeta:['azul','gris'], magenta:['azul','gris'],
+                  rosa:['gris','celeste'], turquesa:['gris','verde'], beige:['verde lima'] };
+const tiles = {};
+function patternTile(kind) {
+  if (tiles[kind]) return tiles[kind];
+  const s = 14, c = document.createElement('canvas'); c.width = c.height = s;
+  const g = c.getContext('2d'); g.lineCap = 'round';
+  const seg = (a, b, c2, d) => { g.moveTo(a, b); g.lineTo(c2, d); };
+  const path = () => {
+    g.beginPath();
+    if (kind === '/') { seg(0, s, s, 0); seg(-s/2, s/2, s/2, -s/2); seg(s/2, s*1.5, s*1.5, s/2); }
+    else if (kind === '\\') { seg(0, 0, s, s); seg(-s/2, s/2, s/2, s*1.5); seg(s/2, -s/2, s*1.5, s/2); }
+    else if (kind === '-') seg(0, s/2, s, s/2);
+    else if (kind === '|') seg(s/2, 0, s/2, s);
+    else if (kind === '+') { seg(0, s/2, s, s/2); seg(s/2, 0, s/2, s); }
+    else if (kind === 'x') { seg(0, 0, s, s); seg(0, s, s, 0); }
+    else if (kind === 'o') g.arc(s/2, s/2, 4, 0, 7);
+    else g.arc(s/2, s/2, 1.6, 0, 7);
+  };
+  for (const [w, col] of [[4, 'rgba(0,0,0,.9)'], [1.8, '#fff']]) { path(); g.lineWidth = w; g.strokeStyle = col; g.fillStyle = col; g.stroke(); if (kind === '.') g.fill(); }
+  return (tiles[kind] = c);
+}
+// Cada color con su patrón: se distinguen sin necesidad de ver el color.
+function drawPatterns(groups, W, H, label) {
+  const m = document.createElement('canvas'); m.width = W; m.height = H;
+  const mg = m.getContext('2d'), t = document.createElement('canvas'); t.width = ov.width; t.height = ov.height;
+  const tg = t.getContext('2d');
+  for (const g of groups) {
+    const kind = PATTERN[g.name.base]; if (!kind) continue;
+    const ids = new Set(g.regions.map(r => r.id)), id = mg.createImageData(W, H);
+    for (let p = 0; p < W*H; p++) if (ids.has(label[p])) id.data[p*4+3] = 255;
+    mg.putImageData(id, 0, 0);
+    tg.globalCompositeOperation = 'source-over'; tg.clearRect(0, 0, t.width, t.height); tg.imageSmoothingEnabled = false;
+    tg.drawImage(m, 0, 0, t.width, t.height);
+    tg.globalCompositeOperation = 'source-in'; tg.fillStyle = tg.createPattern(patternTile(kind), 'repeat'); tg.fillRect(0, 0, t.width, t.height);
+    octx.globalAlpha = 0.55; octx.drawImage(t, 0, 0); octx.globalAlpha = 1;
+  }
+}
+const isBackground = (g, groups) => g.pct > 40 && groups.length > 1;      // el fondo dominante no lleva marcador
+function numbering(groups) { let n = 0; return groups.map(g => isBackground(g, groups) ? 0 : ++n); }
+function drawDisc(x, y, R, txt, sel) {
+  octx.beginPath(); octx.arc(x, y, R, 0, 7);
+  octx.fillStyle = sel ? '#6ea1ff' : 'rgba(0,0,0,.78)'; octx.fill();
+  octx.lineWidth = 2; octx.strokeStyle = '#fff'; octx.stroke();
+  octx.font = `700 ${Math.round(R * 1.05)}px "Inter", system-ui, sans-serif`; octx.textBaseline = 'middle'; octx.textAlign = 'center';
+  octx.fillStyle = sel ? '#000' : '#fff'; octx.fillText(txt, x, y + 1);
+}
+
+function drawOverlay(rs, groups) {
+  octx.clearRect(0, 0, ov.width, ov.height);
+  const { W, H, label } = lastLab, sx = ov.width / W, sy = ov.height / H, bk = bigK();
+  if (patternsOn) drawPatterns(groups, W, H, label);
+  const selIds = new Set();
+  if (selGroup) for (const g of groups) if (g.name.base === selGroup) g.regions.forEach(r => selIds.add(r.id));
+  const keep = new Set(rs.map(r => r.id)), p0 = new Path2D(), p1 = new Path2D();
+  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {       // contorno fino: solo los lados donde cambia de zona
+    const l = label[y*W+x];
+    if (!keep.has(l)) continue;
+    const path = selIds.has(l) ? p1 : p0, X = x*sx, Y = y*sy;
+    if (x === 0   || label[y*W+x-1] !== l) { path.moveTo(X, Y);      path.lineTo(X, Y + sy); }
+    if (x === W-1 || label[y*W+x+1] !== l) { path.moveTo(X + sx, Y); path.lineTo(X + sx, Y + sy); }
+    if (y === 0   || label[(y-1)*W+x] !== l) { path.moveTo(X, Y);      path.lineTo(X + sx, Y); }
+    if (y === H-1 || label[(y+1)*W+x] !== l) { path.moveTo(X, Y + sy); path.lineTo(X + sx, Y + sy); }
+  }
+  octx.lineJoin = 'round'; octx.lineCap = 'round';
+  octx.lineWidth = 3.5; octx.strokeStyle = 'rgba(0,0,0,.75)'; octx.stroke(p0);
+  octx.lineWidth = 1.5; octx.strokeStyle = 'rgba(255,255,255,.95)'; octx.stroke(p0);
+  if (selIds.size) {
+    octx.lineWidth = 6.5; octx.strokeStyle = 'rgba(0,0,0,.85)'; octx.stroke(p1);
+    octx.lineWidth = 3; octx.strokeStyle = '#6ea1ff'; octx.stroke(p1);
+  }
+
+  markersHit = [];
+  if (labelsOn) {
+    const fs = Math.max(11, Math.round(ov.width / (mode === 'simple' ? 38 : 52) * bk)), R = Math.max(11, Math.round(ov.width / 60 * bk));
+    const placed = [], nums = numbering(groups);
+    groups.forEach((g, gi) => {
+      if (isBackground(g, groups)) return;
+      const x = g.big.lx * ov.width, y = g.big.ly * ov.height;
+      for (const r of g.regions) if (r !== g.big) dot(r.lx * ov.width, r.ly * ov.height);         // zonas repetidas: solo un punto
+      if (mode === 'simple') { octx.font = `600 ${fs}px "Inter", system-ui, sans-serif`; octx.textBaseline = 'middle'; octx.textAlign = 'center'; tag(cap(g.name.full) + (g.n > 1 ? ` ×${g.n}` : ''), x, y, fs, placed); return; }
+      drawDisc(x, y, R, String(nums[gi]), g.name.base === selGroup);
+      markersHit.push({ x, y, R, base: g.name.base });
+    });
+    const sg = selGroup && groups.find(g => g.name.base === selGroup);
+    if (sg && mode !== 'simple') {                                                                 // nombre solo del color seleccionado
+      octx.font = `600 ${fs}px "Inter", system-ui, sans-serif`; octx.textBaseline = 'middle'; octx.textAlign = 'center';
+      tag(cap(sg.name.full) + (sg.n > 1 ? ` ×${sg.n}` : ''), sg.big.lx * ov.width, sg.big.ly * ov.height - R * 2.1, fs, placed);
+    }
+  }
+  cmp.pts.forEach((pt, i) => drawDisc(pt.x, pt.y, 14 * bk, 'AB'[i], false));
+  if (marker && !cmp.on) {
+    octx.lineWidth = 4; octx.strokeStyle = '#000'; octx.beginPath(); octx.arc(marker.x, marker.y, 16, 0, 7); octx.stroke();
+    octx.lineWidth = 2; octx.strokeStyle = '#fff'; octx.stroke();
+  }
+}
+
+// Etiqueta compacta y semitransparente; si choca con otra ya colocada, baja un poco.
+function tag(txt, cx, cy, fs, placed) {
+  const w = octx.measureText(txt).width + 12, h = fs + 8;
+  const x = Math.min(Math.max(cx, w/2 + 2), ov.width - w/2 - 2);
+  let y = Math.min(Math.max(cy, h/2 + 2), ov.height - h/2 - 2);
+  for (let t = 0; t < 8 && placed.some(p => Math.abs(p.x - x) < (p.w + w)/2 && Math.abs(p.y - y) < (p.h + h)/2); t++)
+    y = Math.min(y + h + 2, ov.height - h/2 - 2);
+  placed.push({ x, y, w, h });
+  octx.fillStyle = 'rgba(0,0,0,.68)';
+  octx.beginPath();
+  if (octx.roundRect) octx.roundRect(x - w/2, y - h/2, w, h, 6); else octx.rect(x - w/2, y - h/2, w, h);
+  octx.fill();
+  octx.lineWidth = 1.5; octx.strokeStyle = 'rgba(255,255,255,.85)'; octx.stroke();
+  octx.fillStyle = '#fff'; octx.fillText(txt, x, y + 1);
+}
+function dot(x, y) {
+  octx.beginPath(); octx.arc(x, y, Math.max(4, ov.width / 220), 0, 7);
+  octx.fillStyle = '#fff'; octx.fill(); octx.lineWidth = 2; octx.strokeStyle = '#000'; octx.stroke();
+}
+
+const hitMarker = p => markersHit.find(m => Math.hypot(p.x - m.x, p.y - m.y) <= m.R * 1.5 + 8 * p.k);
+function selectGroup(base) {
+  selGroup = selGroup === base ? null : base;
+  renderView();
+  const g = lastGroups.find(x => x.name.base === selGroup);
+  if (g) { lastPick = g.rgb; announceColor(g.name); }
+}
+
+/* ---------- Comparar dos puntos ---------- */
+function rgb2lab(r, g, b) {
+  const f = v => { v /= 255; return v > 0.04045 ? ((v + 0.055) / 1.055) ** 2.4 : v / 12.92; };
+  const R = f(r), G = f(g), B = f(b);
+  const X = (R*0.4124 + G*0.3576 + B*0.1805) / 0.95047, Y = R*0.2126 + G*0.7152 + B*0.0722, Z = (R*0.0193 + G*0.1192 + B*0.9505) / 1.08883;
+  const h = t => t > 0.008856 ? Math.cbrt(t) : 7.787*t + 16/116;
+  return [116*h(Y) - 16, 500*(h(X) - h(Y)), 200*(h(Y) - h(Z))];
+}
+function compareTap(p) {
+  const rgb = samplePoint(p);
+  if (cmp.pts.length >= 2) cmp.pts = [];
+  cmp.pts.push({ x:p.x, y:p.y, rgb });
+  if (cmp.pts.length === 2) showCompare();
+  else { show(rgb, 'Punto A'); $('rDet').textContent += ' · toque un segundo punto para comparar'; }
+  const v = visibleRegions(); drawOverlay(v.rs, groupRegions(v.rs));
+}
+function showCompare() {
+  const [a, b] = cmp.pts.map(x => x.rgb), la = rgb2lab(...a), lb = rgb2lab(...b);
+  const dE = Math.hypot(la[0] - lb[0], la[1] - lb[1], la[2] - lb[2]);
+  const verdict = dE < 5 ? 'Mismo color' : dE < 12 ? 'Colores parecidos' : 'Colores distintos';
+  const dl = lb[0] - la[0], luz = Math.abs(dl) > 6 ? (dl > 0 ? ' · B es más claro' : ' · B es más oscuro') : '';
+  $('rSw').style.background = `linear-gradient(90deg, ${hex(...a)} 50%, ${hex(...b)} 50%)`;
+  $('rName').textContent = verdict;
+  $('rDet').textContent = `A: ${cap(colorName(...a).full)} · B: ${cap(colorName(...b).full)}${luz}`;
+  speak(`${verdict}. A es ${colorName(...a).full} y B es ${colorName(...b).full}`);
+}
+
+// Etiqueta redondeada centrada en (cx, cy), siempre dentro de la imagen (casillas del cable).
+function chip(txt, cx, cy, fs, border, g = octx, W = ov.width, H = ov.height) {
+  const w = g.measureText(txt).width + 14, h = fs + 8;
+  const x = Math.min(Math.max(cx, w/2 + 2), W - w/2 - 2);
+  const y = Math.min(Math.max(cy, h/2 + 2), H - h/2 - 2);
+  g.fillStyle = 'rgba(0,0,0,.85)';
+  g.beginPath();
+  if (g.roundRect) g.roundRect(x - w/2, y - h/2, w, h, 8); else g.rect(x - w/2, y - h/2, w, h);
+  g.fill();
+  g.lineWidth = 3; g.strokeStyle = border; g.stroke();
+  g.fillStyle = '#fff'; g.fillText(txt, x, y + 1);
+}
+
+function renderList(groups, q) {
+  const ul = $('list'); ul.innerHTML = '';
+  if (!groups.length) {
+    const seen = [...new Set(regions.map(r => r.name.full))].slice(0, 6).join(', ');
+    ul.innerHTML = `<li>${q.any ? 'No se encuentra eso en la foto.' : 'No se han detectado zonas claras. Acerque más la cámara.'}${seen ? ' Colores detectados: ' + seen + '.' : ''}</li>`;
+    $('rName').textContent = 'Sin resultado'; $('rDet').textContent = q.any ? 'Sin coincidencias para la búsqueda.' : 'Sin zonas claras.';
+    return;
+  }
+  const nums = numbering(groups);
+  groups.forEach((g, i) => {
+    const li = document.createElement('li');
+    if (g.name.base === selGroup) li.className = 'sel';
+    const zonas = g.n > 1 ? ` · ${g.n} zonas` : '';
+    const pat = patternsOn && PATTERN[g.name.base] ? ` · patrón: ${PATTERN_NAME[PATTERN[g.name.base]]}` : '';
+    const sub = (mode === 'simple'
+      ? (i === 0 && !q.any ? 'Lo más destacado' : `${g.pct.toFixed(0)}% de la foto`) + zonas
+      : `${hex(...g.rgb)} · ${g.pct.toFixed(1)}% de la imagen${zonas}`) + pat;
+    li.innerHTML = `<div class="sw" style="background:${hex(...g.rgb)}"></div><div><b>${mode === 'detail' && nums[i] ? nums[i] + '. ' : ''}${cap(g.name.full)}</b><small>${sub}</small></div>`;
+    li.onclick = () => selectGroup(g.name.base);
+    ul.appendChild(li);
+  });
+  const sel = selGroup && groups.find(g => g.name.base === selGroup);
+  const main = sel || groups[0], names = groups.map(g => g.name.full), dd = dudoso(main.rgb), cf = CONFUSE[main.name.base];
+  $('rSw').style.background = hex(...main.rgb);
+  if (sel) {
+    $('rName').textContent = cap(main.name.full);
+    $('rDet').textContent = `${hex(...main.rgb)} · ${main.pct.toFixed(1)}% · ${main.n} zona(s)` + (dd ? ' · ' + dd : '') + (cf ? ` · Se confunde a menudo con ${cf.join(', ')}` : '');
+    return;
+  }
+  $('rName').textContent = q.any ? names.map(cap).join(' · ') : cap(main.name.full);
+  $('rDet').textContent = (q.any ? `${groups.length} color(es) encontrado(s)`
+    : (names.length > 1 ? 'También hay: ' + names.slice(1).join(', ') : 'Es el único color destacado')) + (dd ? ' · ' + dd : '');
+}
+
+const ask = () => { renderView(); speakSummary(); };
+$('bQ').onclick = ask;
+$('q').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); ask(); $('q').blur(); } });
+
+/* ================= Cables ================= */
+const T568B = ['blanco-naranja','naranja','blanco-verde','azul','blanco-azul','verde','blanco-marrón','marrón'];
+const T568A = ['blanco-verde','verde','blanco-naranja','azul','blanco-azul','naranja','blanco-marrón','marrón'];
+const RJ45_STEPS = [
+  'Pelar unos 3 cm de la funda exterior sin cortar los hilos interiores.',
+  'Separar los 4 pares, destrenzarlos y estirar cada hilo para que queden rectos.',
+  'Colocarlos planos, uno al lado del otro, en el orden indicado (el 1 a la izquierda).',
+  'Apretar los hilos con los dedos y cortar las puntas rectas, dejando unos 1,2 cm sobre la funda.',
+  'Sostener el conector con el clip hacia abajo (contactos dorados hacia arriba) y la abertura hacia el operario. Empujar los hilos hasta el fondo: deben verse las 8 puntas de cobre y la funda debe entrar en el conector.',
+  'Introducir el conector en la crimpadora, apretar a fondo y comprobar con un tester de red.'
+];
+const DIRECT_NOTE = 'Los dos extremos se hacen igual; revisa cada uno por separado.';
+const PAIRS25 = ['blanco','rojo','negro','amarillo','violeta'].flatMap(t => ['azul','naranja','verde','marrón','gris'].map(r => `${t}-${r}`));
+const PRESETS = {
+  directo:  { name:'Ethernet PC / router / switch (cable directo T568B)', ends:{ 'Extremo 1':T568B, 'Extremo 2':T568B },
+              note:'El más habitual. ' + DIRECT_NOTE, steps:RJ45_STEPS },
+  tv:       { name:'Televisor, consola o impresora de red (cable directo)', ends:{ 'Extremo 1':T568B, 'Extremo 2':T568B },
+              note:'No hay un orden distinto: una tele inteligente, una consola o una impresora de red usan el mismo cable directo T568B que un PC. ' + DIRECT_NOTE + ' Si la impresora es USB o la antena del televisor es coaxial, no se crimpa con este orden.', steps:RJ45_STEPS },
+  t568a:    { name:'Ethernet T568A (cable directo)', ends:{ 'Extremo 1':T568A, 'Extremo 2':T568A },
+              note:'Válido si ambos extremos llevan T568A. Menos habitual en España que T568B; no debe combinarse A en un extremo y B en el otro (eso es un cable cruzado).', steps:RJ45_STEPS },
+  cruzado:  { name:'Ethernet cruzado (PC a PC, sin switch)', ends:{ 'Extremo A (T568A)':T568A, 'Extremo B (T568B)':T568B },
+              note:'Un extremo en T568A y el otro en T568B. Hoy casi ningún equipo lo necesita (detectan solo el cruce), pero sirve en equipos antiguos.', steps:RJ45_STEPS },
+  rollover: { name:'Cable de consola (rollover, Cisco)', ends:{ 'Extremo A (T568B)':T568B, 'Extremo B (invertido)':[...T568B].reverse() },
+              note:'El extremo B tiene el orden totalmente invertido respecto al A (el hilo 1 va en la posición 8, etc.).', steps:RJ45_STEPS },
+  rj11:     { name:'Teléfono RJ11 (4 hilos)', ends:{ 'Extremo 1':['negro','rojo','verde','amarillo'], 'Extremo 2':['negro','rojo','verde','amarillo'] },
+              note:'Orden de referencia más común (convención USOC). Algunos cables usan otros colores: conviene verificar que coincidan los dos extremos. En telefonía fija a menudo solo importan el rojo y el verde (los dos centrales).',
+              steps:['Pelar 1–2 cm de funda.','Ordenar los 4 hilos planos en el orden indicado.','Cortar rectos dejando unos 6 mm.','Introducir el conector RJ11 con el clip hacia abajo, empujar hasta el fondo y crimpar.','Comprobar con un tester o con la línea.'] },
+  usb:      { name:'USB 2.0 (solo consulta)', ref:true, ends:{ 'Cable':['rojo','blanco','verde','negro'] },
+              note:'Colores habituales de los 4 hilos de un cable USB 2.0: rojo = +5 V (pin 1), blanco = datos − (pin 2), verde = datos + (pin 3), negro = tierra (pin 4). Es una guía para soldar o reparar; aquí no se analiza la foto. Algunos cables baratos usan otros colores: mide con un tester antes de conectar.',
+              steps:['Cortar o pelar la funda con cuidado.','Identificar cada hilo por su color según el orden indicado.','Soldar o conectar respetando rojo, blanco, verde y negro.','Medir con un tester antes de conectar a un equipo.'] },
+  alim:     { name:'Alimentación AC en Europa (solo consulta)', ref:true, ends:{ 'Cable':['marrón','azul','verde-amarillo'] },
+              labels:{ 'Cable':['Fase (L)','Neutro (N)','Tierra (PE)'] },
+              note:'Colores normalizados en la UE: marrón = fase, azul = neutro y verde-amarillo = tierra. En trifásica la fase puede ser marrón, negro o gris. Sirve solo para identificar hilos: cualquier trabajo sobre cables conectados a la red debe hacerse con el cable desenchufado.',
+              steps:['Desconectar el cable de la red.','Identificar fase, neutro y tierra por el color.','Verificar con un polímetro antes de manipular.'] },
+  atx:      { name:'Fuente de PC ATX (solo consulta)', ref:true, ends:{ 'Conector ATX':['naranja','rojo','amarillo','azul','negro','verde','gris','morado'] },
+              labels:{ 'Conector ATX':['+3,3 V','+5 V','+12 V','−12 V','Masa (GND)','PS_ON (encendido)','PWR_OK (señal correcta)','+5 VSB (en espera)'] },
+              note:'Código de colores de los cables de una fuente ATX. El conector de 24 pines repite varios hilos del mismo color (naranja, rojo, amarillo y negro); aquí se indica qué significa cada color. Manipular siempre con la fuente desconectada de la red.',
+              steps:['Apagar la fuente y desconectarla de la red.','Identificar cada hilo por su color según la lista.','Para comprobar tensiones, usar un polímetro y respetar las polaridades.'] },
+  fibra:    { name:'Fibra óptica: 12 colores (solo consulta)', ref:true, ends:{ 'Fibras':['azul','naranja','verde','marrón','gris','blanco','rojo','negro','amarillo','violeta','rosa','aqua'] },
+              labels:{ 'Fibras':Array.from({ length:12 }, (_, i) => 'Fibra ' + (i + 1)) },
+              note:'Código de colores estándar (TIA-598) para identificar las fibras de un tubo o de un cable de 12 fibras. El gris se llama también pizarra y el aqua es un turquesa claro. Si el cable lleva más de 12 fibras, el código se repite por tubos.',
+              steps:['Identificar el tubo y la fibra por su color según el orden indicado.','Limpiar los conectores antes de unir.','No mirar nunca directamente al extremo de una fibra con equipo encendido.'] },
+  pares25:  { name:'Telefonía: 25 pares (solo consulta)', ref:true, ends:{ 'Pares':PAIRS25 },
+              labels:{ 'Pares':PAIRS25.map((_, i) => 'Par ' + (i + 1)) },
+              note:'Código de 25 pares: el color principal (blanco, rojo, negro, amarillo, violeta) combinado con el color de la raya (azul, naranja, verde, marrón, gris) identifica cada par. Se usa en cableado telefónico y en paneles de conexión.',
+              steps:['Localizar el color principal del hilo y el color de la raya.','Buscar el par correspondiente en la lista.','Etiquetar el par antes de conectarlo.'] }
+};
+const COLOR_HEX = { naranja:'#f28c28', verde:'#2e9e4f', azul:'#2f6fdb', 'marrón':'#7a4a24', rojo:'#d32f2f', amarillo:'#f2d024', negro:'#151515', blanco:'#ffffff', gris:'#8a8f98', morado:'#8e44ad', violeta:'#8e44ad', rosa:'#f48fb1', aqua:'#26c6da', oro:'#c9a227', plata:'#b8bcc4' };
+const REF_HUE = { rojo:0, naranja:28, amarillo:55, verde:130, azul:220, 'marrón':25 };
+
+// Muestra de color: sólido, o a rayas si el nombre es «color-raya» (p. ej. blanco-naranja, rojo-azul, verde-amarillo).
+const swatch = spec => {
+  const parts = spec.split('-');
+  if (parts.length === 2 && COLOR_HEX[parts[0]] && COLOR_HEX[parts[1]])
+    return `<span class="chip" style="background:repeating-linear-gradient(45deg,${COLOR_HEX[parts[0]]} 0 5px,${COLOR_HEX[parts[1]]} 5px 10px)"></span>`;
+  return `<span class="chip" style="background:${COLOR_HEX[spec] || '#555'}"></span>`;
+};
+const baseColor = s => s.replace('blanco-', '');
+
+function currentSeq() {
+  const P = PRESETS[$('preset').value], ends = Object.keys(P.ends);
+  return P.ends[ends.includes($('end').value) ? $('end').value : ends[0]];
+}
+
+function fillPreset() {
+  const P = PRESETS[$('preset').value], ends = Object.keys(P.ends);
+  $('endBox').hidden = ends.length < 2;
+  $('end').innerHTML = ends.map(e => `<option>${e}</option>`).join('');
+  $('presetNote').textContent = P.note;
+  $('steps').innerHTML = P.steps.map(s => `<li>${s}</li>`).join('');
+  fillPins();
+}
+function fillPins() {
+  const P = PRESETS[$('preset').value], ends = Object.keys(P.ends), end = ends.includes($('end').value) ? $('end').value : ends[0];
+  const lbl = P.labels && P.labels[end];
+  $('pins').classList.toggle('wide', !!lbl);
+  $('pins').innerHTML = currentSeq().map((s, i) => `<div><b>${i+1}</b>${swatch(s)}<span>${s}${lbl ? ' · ' + lbl[i] : ''}</span></div>`).join('');
+}
+$('preset').innerHTML = Object.entries(PRESETS).map(([k, p]) => `<option value="${k}">${p.name}</option>`).join('');
+$('preset').onchange = () => { overrides = []; endResults = {}; fillPreset(); renderView(); };
+$('end').onchange = () => { overrides = []; fillPins(); renderView(); };
+$('orient').onchange = () => { if (mode === 'cable') renderCable(); };
+fillPreset();
+
+/* ================= Motor de lectura de hilos ================= */
+
+// Equilibrio de blancos automático: lo más claro del haz (hilos blancos o brillos) es el "blanco" de la escena.
+function cableGains(data, step) {
+  const lum = i => data[i]*0.299 + data[i+1]*0.587 + data[i+2]*0.114, ls = [];
+  for (let i = 0; i < data.length; i += 4*step) ls.push(lum(i));
+  ls.sort((a, b) => a - b);
+  const cut = ls[Math.floor(ls.length * 0.88)];
+  let r = 0, g = 0, b = 0, n = 0;
+  for (let i = 0; i < data.length; i += 4*step) if (lum(i) >= cut) { r += data[i]; g += data[i+1]; b += data[i+2]; n++; }
+  if (!n) return [1, 1, 1];
+  r /= n; g /= n; b /= n;
+  const mx = Math.max(r, g, b), mn = Math.min(r, g, b);
+  if (mx < 90 || (mx - mn) / mx > 0.5) return [1, 1, 1];      // lo más claro tiene color propio: no es un blanco fiable
+  const m = (r + g + b) / 3;
+  return [m/r, m/g, m/b].map(v => Math.min(1.8, Math.max(0.6, v)));
+}
+
+// Clasifica un píxel (ya corregido): 'W' (blanco), un color del cable, o null (se ignora).
+function pxClass(r, g, b, colors) {
+  const [h, s, l] = rgb2hsl(r, g, b);
+  if (colors.includes('negro') && l < 0.24 && s < 0.45) return 'negro';
+  if (l < 0.12) return null;
+  if ((s < 0.30 && l >= 0.55) || (l > 0.82 && s < 0.6)) return 'W';
+  if (s < 0.22) return null;
+  // Naranja y marrón tienen el mismo tono: se marcan como 'warm' y se decide por hilo (ver cableComputeOn).
+  const both = colors.includes('naranja') && colors.includes('marrón');
+  if (both && h >= 8 && h <= 48) return 'warm';
+  let best = null, bd = 1e9;
+  for (const c of colors) {
+    if (c === 'negro' || c === 'blanco') continue;
+    if (both && (c === 'naranja' || c === 'marrón')) continue;
+    const dh = Math.abs(h - REF_HUE[c]);
+    const d = Math.min(dh, 360 - dh);
+    if (d < bd) { bd = d; best = c; }
+  }
+  return bd > 95 ? null : best;
+}
+
+// Reparte las columnas del perfil en n hilos contiguos (más un margen opcional a cada lado)
+// minimizando la variación de color dentro de cada hilo. Admite hilos de distinto ancho.
+function segmentWires(P, jLo, jHi, n) {
+  const M = jHi - jLo;
+  if (M < n * 3) return null;
+  const S0 = new Float64Array(jHi + 1), S1 = new Float64Array(jHi + 1), S2 = new Float64Array(jHi + 1), Q = new Float64Array(jHi + 1);
+  for (let j = jLo; j < jHi; j++) {
+    const r = P[j*3], g = P[j*3+1], b = P[j*3+2];
+    S0[j+1] = S0[j] + r; S1[j+1] = S1[j] + g; S2[j+1] = S2[j] + b; Q[j+1] = Q[j] + r*r + g*g + b*b;
+  }
+  const sse = (i, j) => {
+    const len = j - i; if (len <= 0) return 0;
+    const a = S0[j] - S0[i], b = S1[j] - S1[i], c = S2[j] - S2[i];
+    return Math.max(0, Q[j] - Q[i] - (a*a + b*b + c*c) / len);
+  };
+  const V = Math.max(1, sse(jLo, jHi) / M), lamV = 1.5 * V, INF = 1e18;
+  let best = null;
+  for (const sc of [1, 0.85, 0.7]) {
+    const E = M / n * sc, minL = Math.max(2, Math.floor(E * 0.5)), maxL = Math.ceil(E * 1.7), maxM = Math.floor(M * 0.3), W1 = M + 1;
+    const dp = new Float64Array((n + 1) * W1).fill(INF), par = new Int16Array((n + 1) * W1).fill(-1);
+    for (let l = 0; l <= Math.min(maxM, M); l++) dp[l] = sse(jLo, jLo + l);          // margen izquierdo
+    for (let s = 1; s <= n; s++) for (let u = 0; u <= M; u++) {
+      let bv = INF, bi = -1;
+      for (let l = minL; l <= maxL && l <= u; l++) {
+        const p = dp[(s-1)*W1 + u - l]; if (p >= INF) continue;
+        const v = p + sse(jLo + u - l, jLo + u) + lamV * E * ((l - E) / E) ** 2;
+        if (v < bv) { bv = v; bi = u - l; }
+      }
+      dp[s*W1 + u] = bv; par[s*W1 + u] = bi;
+    }
+    let bv = INF, bu = -1;
+    for (let l = 0; l <= Math.min(maxM, M); l++) {                                    // margen derecho
+      const u = M - l, p = dp[n*W1 + u]; if (p >= INF) continue;
+      const v = p + sse(jLo + u, jHi); if (v < bv) { bv = v; bu = u; }
+    }
+    if (bu < 0) continue;
+    const cost = bv + 0.25 * V * M * (1 - sc);
+    if (!best || cost < best.cost) {
+      const segs = []; let u = bu;
+      for (let s = n; s >= 1; s--) { const st = par[s*W1 + u]; segs.unshift({ s: jLo + st, e: jLo + u }); u = st; }
+      best = { cost, segs };
+    }
+  }
+  return best && best.segs;
+}
+
+function cableComputeOn(c, rect, vertical, ovr, seqOv) {
+  if (!rect || PRESETS[$('preset').value].ref) return null;
+  const seq = seqOv || currentSeq(), n = seq.length;
+  const x0 = Math.max(0, Math.round(Math.min(rect.x0, rect.x1))), y0 = Math.max(0, Math.round(Math.min(rect.y0, rect.y1)));
+  const w = Math.min(c.width - x0, Math.round(Math.abs(rect.x1 - rect.x0))), h = Math.min(c.height - y0, Math.round(Math.abs(rect.y1 - rect.y0)));
+  const along = vertical ? w : h, across = vertical ? h : w;
+  if (along < n * 3 || across < 6) return null;
+  const data = c.getContext('2d', { willReadFrequently:true }).getImageData(x0, y0, w, h).data;
+  const colors = [...new Set(seq.map(baseColor))];
+  const nStripe = seq.filter(s => s.startsWith('blanco-')).length, allowStripe = nStripe > 0;
+  const gains = allowStripe ? cableGains(data, Math.max(1, Math.floor(w*h / 6000))) : [1, 1, 1];
+  const rd = (i, ch) => Math.min(255, data[i+ch] * gains[ch]);
+  const at = (a, k, t) => {            // índice del píxel: a = posición a lo ancho, k = posición a lo largo; t = inclinación
+    const aa = Math.round(a + (k - across/2) * t);
+    if (aa < 0 || aa >= along) return -1;
+    const x = vertical ? aa : k, y = vertical ? k : aa;
+    return (y*w + x) * 4;
+  };
+
+  // Perfil de color a lo ancho, promediando a lo largo de cada hilo (con inclinación t)
+  const f = Math.max(1, along / 240), L = Math.floor(along / f), kStep = Math.max(1, Math.floor(across / 40)), nK = Math.ceil(across / kStep);
+  const profile = t => {
+    const P = new Float32Array(L*3), ok = new Uint8Array(L);
+    for (let j = 0; j < L; j++) {
+      let r = 0, g = 0, b = 0, cnt = 0; const a = (j + 0.5) * f;
+      for (let k = 0; k < across; k += kStep) { const i = at(a, k, t); if (i < 0) continue; r += rd(i, 0); g += rd(i, 1); b += rd(i, 2); cnt++; }
+      if (cnt >= nK * 0.7) { P[j*3] = r/cnt; P[j*3+1] = g/cnt; P[j*3+2] = b/cnt; ok[j] = 1; }
+    }
+    let lo = 0; while (lo < L && !ok[lo]) lo++;
+    let hi = L; while (hi > lo && !ok[hi-1]) hi--;
+    return { P, lo, hi };
+  };
+  const sharp = pr => {
+    if (pr.hi - pr.lo < n * 4) return -1;
+    let s = 0;
+    for (let j = pr.lo; j < pr.hi - 1; j++) s += Math.abs(pr.P[j*3] - pr.P[j*3+3]) + Math.abs(pr.P[j*3+1] - pr.P[j*3+4]) + Math.abs(pr.P[j*3+2] - pr.P[j*3+5]);
+    return s / (pr.hi - pr.lo - 1);
+  };
+  // Inclinación: la que deja los bordes entre hilos más nítidos
+  const s0 = sharp(profile(0));
+  let bestT = 0, bestS = -1;
+  for (let t = -0.2; t <= 0.2001; t += 0.02) { const s = sharp(profile(t)); if (s > bestS) { bestS = s; bestT = t; } }
+  const base = bestT;
+  for (let dt = -0.015; dt <= 0.0151; dt += 0.005) { const s = sharp(profile(base + dt)); if (s > bestS) { bestS = s; bestT = base + dt; } }
+  if (bestS < s0 * 1.04) bestT = 0;
+
+  const pr = profile(bestT);
+  let segs = segmentWires(pr.P, pr.lo, pr.hi, n);
+  if (!segs) { segs = []; for (let i = 0; i < n; i++) segs.push({ s: pr.lo + (pr.hi - pr.lo) * i / n, e: pr.lo + (pr.hi - pr.lo) * (i + 1) / n }); }
+
+  // Estadística de cada hilo (zona central, sin los bordes)
+  const stats = segs.map(sg => {
+    const sA = sg.s * f, eA = sg.e * f, len = eA - sA, a0 = sA + len * 0.2, a1 = eA - len * 0.2;
+    const step = Math.max(1, Math.floor(Math.sqrt(Math.max(1, (a1 - a0) * across) / 3500)));
+    const counts = {}, warm = []; let white = 0, samples = 0, wSum = 0;
+    for (let a = a0; a < a1; a += step) for (let k = 0; k < across; k += step) {
+      const i = at(a, k, bestT); if (i < 0) continue;
+      samples++;
+      const r = rd(i, 0), g = rd(i, 1), b = rd(i, 2), cl = pxClass(r, g, b, colors), mx = Math.max(r, g, b);
+      if (cl === 'W') { white++; wSum += mx; }
+      else if (cl === 'warm') warm.push([(mx - Math.min(r, g, b)) / mx, mx]);      // [saturación, brillo]
+      else if (cl) counts[cl] = (counts[cl] || 0) + 1;
+    }
+    warm.sort((x, y) => x[0] - y[0]);
+    const chromAll = Object.values(counts).reduce((a, b) => a + b, 0) + warm.length;
+    return { sA, eA, counts, warm, white, samples, wLvl: white >= 30 ? wSum / white : null, fr: (chromAll + white) ? white / (chromAll + white) : 0 };
+  });
+
+  // Liso o rayado: se ordena por cantidad de blanco y se reparten los rayados esperados; los extremos claros mandan.
+  const striped = new Array(n).fill(false), unsure = new Array(n).fill(false);
+  if (allowStripe) {
+    const ord = stats.map((st, i) => [st.fr, i]).sort((a, b) => b[0] - a[0]);
+    ord.forEach(([, i], rank) => { striped[i] = rank < nStripe; });
+    if (nStripe < n && ord[nStripe - 1][0] - ord[nStripe][0] < 0.05) { unsure[ord[nStripe - 1][1]] = true; unsure[ord[nStripe][1]] = true; }
+    stats.forEach((st, i) => { if (st.fr < 0.03) { striped[i] = false; unsure[i] = false; } else if (st.fr > 0.45) { striped[i] = true; unsure[i] = false; } });
+  }
+
+  // Naranja o marrón (mismo tono): se mide el brillo de la raya/hilo respecto al blanco del mismo hilo (o el más cercano):
+  // el naranja es casi tan brillante como el blanco; el marrón, la mitad. Entre hilos del mismo tipo gana el más brillante.
+  if (seq.some(s => baseColor(s) === 'naranja') && seq.some(s => baseColor(s) === 'marrón')) {
+    const refW = i => {
+      if (stats[i].wLvl) return stats[i].wLvl;
+      for (let d = 1; d <= 3; d++) { const v = [stats[i-d], stats[i+d]].filter(s => s && s.wLvl).map(s => s.wLvl); if (v.length) return v.reduce((a, b) => a + b) / v.length; }
+      return null;
+    };
+    const useRatio = stats.some(st => st.wLvl);
+    const sat = (st, i) => {
+      if (!st.warm.length) return -1;
+      const half = st.warm.slice(st.warm.length >> 1);                     // la mitad más saturada
+      if (!useRatio) return half[half.length >> 1][0];
+      const mxs = half.map(p => p[1]).sort((a, b) => a - b);
+      return mxs[mxs.length >> 1] / refW(i);
+    };
+    const score = stats.map((st, i) => sat(st, i)), hi = useRatio ? 0.88 : 0.88, lo = useRatio ? 0.58 : 0.62;
+    const orangeSet = new Set();
+    for (const isStr of [false, true]) {
+      const cand = stats.map((st, i) => i).filter(i => striped[i] === isStr && stats[i].warm.length >= 0.05 * stats[i].samples);
+      const exp = seq.filter(s => s.startsWith('blanco-') === isStr), nOr = exp.filter(s => baseColor(s) === 'naranja').length, nBr = exp.filter(s => baseColor(s) === 'marrón').length;
+      const ranked = [...cand].sort((a, b) => score[b] - score[a]);
+      (cand.length === nOr + nBr ? ranked.slice(0, nOr) : cand.filter(i => score[i] > (hi + lo) / 2)).forEach(i => orangeSet.add(i));
+    }
+    stats.forEach((st, i) => {
+      if (!st.warm.length) return;
+      const v = score[i], isOr = v > hi ? true : v < lo ? false : orangeSet.has(i), col = isOr ? 'naranja' : 'marrón';
+      st.counts[col] = (st.counts[col] || 0) + st.warm.length;
+    });
+  }
+  stats.forEach(st => {
+    let best = null, chrom = 0;
+    for (const [col, v] of Object.entries(st.counts)) { chrom += v; if (!best || v > st.counts[best]) best = col; }
+    let alt = null;
+    for (const [col, v] of Object.entries(st.counts)) if (col !== best && (!alt || v > st.counts[alt])) alt = col;
+    if (alt && st.counts[alt] < 0.5 * st.counts[best]) alt = null;
+    Object.assign(st, { best, alt, chrom, total: allowStripe ? chrom + st.white : chrom });
+  });
+
+  const items = stats.map((st, i) => {
+    let auto = '?';
+    if (st.total >= st.samples * 0.2) {
+      if (!allowStripe) auto = st.best || '?';
+      else if (!st.best) auto = st.white ? 'blanco' : '?';
+      else auto = striped[i] ? 'blanco-' + st.best : st.best;
+    }
+    return { spec: ovr[i] || auto, auto, frac: st.fr, alt: st.alt, unsure: unsure[i], manual: !!ovr[i], a0: st.sA, a1: st.eA, counts: st.counts };
+  });
+  // Fiabilidad: motivos por los que la lectura podría ser errónea (se muestran como aviso al usuario)
+  const reasons = [];
+  const nQ = items.filter(it => it.spec === '?').length, nAlt = items.filter(it => it.alt && !it.manual).length, nUns = items.filter(it => it.unsure && !it.manual).length;
+  if (nQ) reasons.push(`${nQ} hilo(s) no se distinguen`);
+  if (nAlt) reasons.push(`${nAlt} hilo(s) mezclan dos colores parecidos`);
+  if (nUns) reasons.push('no está claro si algún hilo es liso o rayado');
+  const wd = stats.map(s => s.eA - s.sA), wm = wd.reduce((a, b) => a + b, 0) / n;
+  if (n >= 4 && Math.sqrt(wd.reduce((a, x) => a + (x - wm) ** 2, 0) / n) / wm > 0.35) reasons.push('los hilos salen con anchos muy distintos: quizá el recuadro no está bien colocado');
+  if (Math.max(...gains) / Math.min(...gains) > 1.6) reasons.push('la luz tiene un tinte muy fuerte');
+  if (Math.abs(bestT) > 0.14) reasons.push('los hilos están muy inclinados');
+  if (across < 40) reasons.push('la foto está muy lejos');
+  return { n, seq, x0, y0, w, h, vertical, items, t: bestT, across, along, reasons, gains: gains.map(v => +v.toFixed(2)) };
+}
+function cableCompute() { return cableComputeOn(cv, cableRect, $('orient').value === 'v', overrides); }
+
+function cableVerdict(info) {
+  const { seq, n } = info, det = info.items.map(i => i.spec);
+  const status = det.map((d, i) => d === seq[i] ? 'ok' : (d !== '?' && baseColor(d) === baseColor(seq[i]) ? 'warn' : 'bad'));
+  info.items.forEach((it, i) => { if (status[i] === 'ok' && (it.alt || it.unsure) && !it.manual) status[i] = 'warn'; });
+  const swaps = [];   // dos hilos que han cambiado de sitio entre sí (el fallo típico, p. ej. 3 y 6)
+  for (let i = 0; i < n; i++) for (let j = i + 1; j < n; j++)
+    if (det[i] !== seq[i] && det[j] !== seq[j] && det[i] === seq[j] && det[j] === seq[i]) { swaps.push([i, j]); status[i] = status[j] = 'bad'; }
+  const bad = status.flatMap((s, i) => s === 'bad' ? [i] : []), warn = status.flatMap((s, i) => s === 'warn' ? [i] : []);
+  const V = $('verdict');
+  const BADGE = { ok:'Correcto', warn:'Revisar', bad:'Error' };
+  const say = (cls, html, extra = []) => {
+    V.className = 'verdict ' + cls;
+    V.innerHTML = `<span class="badge ${cls}">${BADGE[cls]}</span>${html}` + noticeHtml([...(info.reasons || []), ...extra, ...(cableNote ? [cableNote.replace(/\.$/, '')] : [])]);
+  };
+
+  if (!bad.length && !warn.length) return say('ok', `Los ${n} hilos están en el orden correcto.`) || status;
+  if (!bad.length) return say('warn', `Parece correcto, pero en ${warn.length} hilo(s) la lectura no es segura (posiciones ${warn.map(i => i+1).join(', ')}). Si usted lo ve bien, toque el hilo para confirmar la lectura; para corregirlo, vuelva a tocarlo. También puede acercar la foto o mejorar la luz.`) || status;
+  if (det.every((d, i) => d === seq[n-1-i])) return say('warn', '<b>El orden es correcto, pero está invertido.</b> La foto está tomada desde el otro lado o el cable está girado 180°. Gírelo antes de insertarlo en el conector.') || status;
+
+  const lines = swaps.map(([i, j]) => `Los hilos de las posiciones <b>${i+1}</b> (${seq[i]}) y <b>${j+1}</b> (${seq[j]}) están intercambiados.`);
+  const inSwap = new Set(swaps.flat());
+  for (const i of bad) if (!inSwap.has(i)) lines.push(`Posición <b>${i+1}</b>: debería ir <b>${seq[i]}</b> y se detecta <b>${det[i] === '?' ? 'un color no identificable' : det[i]}</b>.`);
+  for (const i of warn) lines.push(`Posición <b>${i+1}</b>: ${info.items[i].alt ? `se detecta <b>${det[i]}</b>, pero también algo de <b>${info.items[i].alt}</b>` : 'el color coincide, pero no es seguro si es liso o rayado'} (debería ser <b>${seq[i]}</b>).`);
+  say('bad', `<b>${bad.length} hilo(s) en posición incorrecta.</b><ul>${lines.map(l => `<li>${l}</li>`).join('')}</ul>`,
+    bad.length <= 2 ? ['con tan pocos hilos señalados suele ser un fallo de lectura de la app y no del cable: compruébelos mirándolos directamente'] : []);
+  return status;
+}
+
+const SYM = { ok:' OK', warn:' !', bad:' X' }, COLR = { ok:'#2ea043', warn:'#d29922', bad:'#f85149' };
+
+// Dibuja los hilos detectados (cada uno con su inclinación real) y su estado sobre el contexto g.
+function drawCableOn(g, W, H, info, status, fs) {
+  const { x0, y0, vertical, t, across, items } = info;
+  const P = (a, k) => vertical ? [x0 + a + (k - across/2) * t, y0 + k] : [x0 + k, y0 + a + (k - across/2) * t];
+  g.lineJoin = 'round'; g.setLineDash([8, 6]);
+  for (const it of items) {
+    const q = [P(it.a0, 0), P(it.a1, 0), P(it.a1, across), P(it.a0, across)];
+    g.beginPath(); q.forEach(([x, y], j) => j ? g.lineTo(x, y) : g.moveTo(x, y)); g.closePath();
+    g.lineWidth = 4; g.strokeStyle = 'rgba(0,0,0,.8)'; g.stroke();
+    g.lineWidth = 2; g.strokeStyle = 'rgba(255,255,255,.95)'; g.stroke();
+  }
+  g.setLineDash([]);
+  g.font = `800 ${fs}px "Inter", system-ui, sans-serif`; g.textBaseline = 'middle'; g.textAlign = 'center';
+  items.forEach((it, i) => {
+    const [cx, cy] = P((it.a0 + it.a1) / 2, 0);
+    if (vertical) chip(`${i+1}${SYM[status[i]]}`, cx, cy - fs, fs, COLR[status[i]], g, W, H);
+    else chip(`${i+1}${SYM[status[i]]}`, cx + fs * 1.6, cy, fs, COLR[status[i]], g, W, H);
+  });
+}
+
+function renderCable() {
+  octx.clearRect(0, 0, ov.width, ov.height);
+  renderEndSum();
+  $('orderCard').hidden = true;
+  const info = cableCompute(), ul = $('clist');
+  ul.innerHTML = '';
+  if (PRESETS[$('preset').value].ref) {
+    $('verdict').className = 'verdict idle';
+    $('verdict').innerHTML = 'Este tipo de cable es solo de <b>consulta</b>: el color de cada hilo figura en «Orden correcto». No se analiza la foto.';
+    return;
+  }
+  if (!info) {
+    const V = $('verdict');
+    V.className = 'verdict idle';
+    V.innerHTML = cableRect ? 'El recuadro es demasiado pequeño. Dibuje uno que cubra todos los hilos.' : 'Haga la foto y <b>dibuje con el dedo un recuadro</b> sobre los hilos, o pulse «Detectar hilos». Se compararán con el orden correcto.';
+    return;
+  }
+  const status = cableVerdict(info);
+  const label = { ok:'Correcto', warn:'Revisar', bad:'Error' };
+  lastCable = { info, status };
+  endResults[$('preset').value + '|' + $('end').value] = { ok: status.every(s => s === 'ok') };
+  renderEndSum();
+  drawCableOn(octx, ov.width, ov.height, info, status, Math.max(14, Math.round(ov.width / 40 * bigK())));
+  showOrder(info);
+
+  info.items.forEach((it, i) => {
+    const li = document.createElement('li'); li.className = 'crow';
+    li.innerHTML = `<span class="tag ${status[i]}">${label[status[i]]}</span><b>${i+1}</b>` +
+      `<small>esperado</small>${swatch(info.seq[i])}${info.seq[i]}` +
+      `<small>· detectado</small>${swatch(it.spec)}${it.spec}${it.manual ? ' <small>(manual)</small>' : ''}`;
+    ul.appendChild(li);
+  });
+}
+
+/* ---------- Dibujar recuadro / corregir hilo ---------- */
+const toCv = e => {
+  const r = cv.getBoundingClientRect();
+  return { x:(e.clientX - r.left) * cv.width / r.width, y:(e.clientY - r.top) * cv.height / r.height, k:cv.width / r.width };
+};
+let drag = null;
+const drawMode = () => mode === 'cable' || mode === 'resistor';     // modos en los que se dibuja un recuadro sobre la foto
+stage.addEventListener('pointerdown', e => {
+  if (!hasImage) return;
+  drag = { p0:toCv(e), moved:false };
+  if (drawMode()) { try { stage.setPointerCapture(e.pointerId); } catch (_) {} }
+  if (!drawMode() || calibrating) moveLoupe(e);
+  if (!drawMode() && !calibrating) {         // mantener pulsado: se ocultan marcas y contornos para ver la foto limpia
+    clearTimeout(holdTimer);
+    holdTimer = setTimeout(() => { if (drag && !drag.moved) { holdHid = true; ov.style.opacity = '0'; } }, 380);
+  }
+});
+stage.addEventListener('pointermove', e => {
+  if (!drag) return;
+  if (!drawMode() || calibrating) {
+    const q = toCv(e);
+    if (Math.hypot(q.x - drag.p0.x, q.y - drag.p0.y) > 8 * q.k) drag.moved = true;
+    moveLoupe(e); return;
+  }
+  const p = toCv(e);
+  if (drag.moved || Math.hypot(p.x - drag.p0.x, p.y - drag.p0.y) > 8 * p.k) {
+    drag.moved = true;
+    cableRect = { x0:drag.p0.x, y0:drag.p0.y, x1:p.x, y1:p.y };
+    overrides = []; cableNote = ''; resOv = [];
+    if (mode === 'resistor') { resVert = Math.abs(p.x - drag.p0.x) >= Math.abs(p.y - drag.p0.y); renderResistor(); }
+    else renderCable();
+  }
+});
+stage.addEventListener('pointerup', e => {
+  if (!drag) return;
+  hideLoupe(); clearTimeout(holdTimer);
+  const wasHeld = holdHid;
+  if (holdHid) { holdHid = false; ov.style.opacity = ''; }
+  const d = drag, p = toCv(e);
+  drag = null;
+  if (wasHeld) return;
+  if (calibrating) calibrate(p);
+  else if (mode === 'cable') { if (d.moved) speakVerdict(); else tapSlot(p); }
+  else if (mode === 'resistor') { if (d.moved) renderResistor(); }
+  else if (cmp.on) compareTap(p);
+  else { const h = d.moved ? null : hitMarker(p); if (h) selectGroup(h.base); else pickPoint(p); }
+});
+stage.addEventListener('pointercancel', () => { drag = null; hideLoupe(); clearTimeout(holdTimer); holdHid = false; ov.style.opacity = ''; });
+
+// Color medio de un entorno pequeño del punto tocado.
+function samplePoint(p) {
+  const rad = Math.max(2, Math.round(cv.width / 250));
+  const x0 = Math.max(0, Math.round(p.x) - rad), y0 = Math.max(0, Math.round(p.y) - rad);
+  const w = Math.min(cv.width - x0, rad*2 + 1), h = Math.min(cv.height - y0, rad*2 + 1);
+  const d = ctx.getImageData(x0, y0, w, h).data, m = avg(d);
+  let dev = 0;                                                         // cuánto varía el color dentro de la zona tocada
+  for (let i = 0; i < d.length; i += 4) dev += Math.abs(d[i] - m[0]) + Math.abs(d[i+1] - m[1]) + Math.abs(d[i+2] - m[2]);
+  lastVar = dev / (d.length / 4) / 3;
+  return m;
+}
+
+// Lupa: amplía la zona bajo el dedo y se coloca encima para no taparla; el color se lee mientras se arrastra.
+function moveLoupe(e) {
+  const p = toCv(e), L = $('loupe'), S = 112, box = S / 6 * p.k, r = stage.getBoundingClientRect();
+  const lc = L.getContext('2d');
+  lc.imageSmoothingEnabled = false;
+  lc.clearRect(0, 0, S, S);
+  lc.drawImage(cv, p.x - box/2, p.y - box/2, box, box, 0, 0, S, S);
+  lc.lineWidth = 3; lc.strokeStyle = '#000'; lc.strokeRect(S/2 - 6, S/2 - 6, 12, 12);
+  lc.lineWidth = 1.5; lc.strokeStyle = '#fff'; lc.strokeRect(S/2 - 6, S/2 - 6, 12, 12);
+  let top = e.clientY - r.top - S - 30;
+  if (top < 4) top = e.clientY - r.top + 30;
+  L.style.left = Math.max(4, Math.min(r.width - S - 4, e.clientX - r.left - S/2)) + 'px';
+  L.style.top = top + 'px';
+  L.hidden = false;
+  if (!calibrating) { const rg = samplePoint(p); show(rg, 'Punto', lastVar); }
+}
+const hideLoupe = () => { $('loupe').hidden = true; };
+
+function pickPoint(p) {
+  const rgb = samplePoint(p); lastPick = rgb;
+  show(rgb, 'Punto tocado', lastVar);
+  if (refColor) refCompareText(rgb);
+  announceColor(colorName(...rgb));
+  marker = { x:p.x, y:p.y };
+  const v = visibleRegions();
+  drawOverlay(v.rs, groupRegions(v.rs));
+}
+
+// Tocar un hilo dentro del recuadro rota su valor a mano: auto → cada opción → auto.
+function tapSlot(p) {
+  const info = cableCompute();
+  if (!info || p.x < info.x0 || p.x > info.x0 + info.w || p.y < info.y0 || p.y > info.y0 + info.h) return;
+  const k = info.vertical ? p.y - info.y0 : p.x - info.x0;                      // posición a lo largo del hilo
+  const a = (info.vertical ? p.x - info.x0 : p.y - info.y0) - (k - info.across/2) * info.t;   // a lo ancho, sin inclinación
+  let i = info.items.findIndex(it => a >= it.a0 && a < it.a1);
+  if (i < 0) i = info.items.reduce((b, it, j) => Math.abs((it.a0 + it.a1)/2 - a) < Math.abs((info.items[b].a0 + info.items[b].a1)/2 - a) ? j : b, 0);
+  const cur0 = info.items[i];
+  if ((cur0.unsure || cur0.alt) && !cur0.manual) { overrides[i] = cur0.spec; renderCable(); speakVerdict(); return; }   // hilo dudoso: un toque confirma la lectura
+  const P = PRESETS[$('preset').value];
+  const opts = [...new Set([...Object.values(P.ends).flat(), ...Object.values(P.ends).flat().map(baseColor), '?'])];
+  const cur = overrides[i], idx = cur ? opts.indexOf(cur) : -1;
+  if (idx + 1 >= opts.length) delete overrides[i]; else overrides[i] = opts[idx + 1];
+  renderCable();
+  speakVerdict();
+}
+
+function renderEndSum() {
+  const key = $('preset').value, P = PRESETS[key], ends = Object.keys(P.ends);
+  if (P.ref) { $('endsum').innerHTML = ''; return; }
+  const rows = ends.map(e => {
+    const r = endResults[key + '|' + e];
+    return `<div><span class="tag ${r ? (r.ok ? 'ok' : 'bad') : 'idle'}">${r ? (r.ok ? 'Correcto' : 'Error') : 'Pendiente'}</span><b>${e}</b></div>`;
+  });
+  const all = ends.every(e => endResults[key + '|' + e] && endResults[key + '|' + e].ok);
+  $('endsum').innerHTML = rows.join('') + (all ? '<div><span class="tag ok">Completo</span><b>Los dos extremos están correctos.</b></div>' : '');
+}
+
+/* ---------- Detección automática de los hilos ---------- */
+function solve3(A, b) {
+  const M = A.map((r, i) => [...r, b[i]]);
+  for (let i = 0; i < 3; i++) {
+    let p = i;
+    for (let r = i + 1; r < 3; r++) if (Math.abs(M[r][i]) > Math.abs(M[p][i])) p = r;
+    [M[i], M[p]] = [M[p], M[i]];
+    if (Math.abs(M[i][i]) < 1e-9) return [b[0] / (A[0][0] || 1), 0, 0];
+    for (let r = i + 1; r < 3; r++) { const q = M[r][i] / M[i][i]; for (let c = i; c < 4; c++) M[r][c] -= q * M[i][c]; }
+  }
+  const x = [0, 0, 0];
+  for (let i = 2; i >= 0; i--) { let s = M[i][3]; for (let c = i + 1; c < 3; c++) s -= M[i][c] * x[c]; x[i] = s / M[i][i]; }
+  return x;
+}
+
+// Localiza el haz de hilos en el canvas c: devuelve { rect, vertical } o null.
+function detectCable(c) {
+  const W = Math.min(200, c.width), k = W / c.width, H = Math.max(8, Math.round(c.height * k));
+  const t = document.createElement('canvas'); t.width = W; t.height = H;
+  const tc = t.getContext('2d', { willReadFrequently:true });
+  tc.drawImage(c, 0, 0, W, H);
+  const d = tc.getImageData(0, 0, W, H).data;
+  // Fondo = plano de color ajustado a los píxeles del borde (absorbe degradados de luz)
+  const bw = Math.max(2, Math.round(Math.min(W, H) * 0.06));
+  const A = [[0,0,0],[0,0,0],[0,0,0]], B = [[0,0,0],[0,0,0],[0,0,0]];
+  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+    if (x >= bw && x < W - bw && y >= bw && y < H - bw) continue;
+    const v = [1, x / W, y / H], i = (y*W + x) * 4;
+    for (let a = 0; a < 3; a++) { for (let b = 0; b < 3; b++) A[a][b] += v[a] * v[b]; for (let ch = 0; ch < 3; ch++) B[ch][a] += v[a] * d[i+ch]; }
+  }
+  const coef = B.map(bv => solve3(A, bv));
+  const mask = new Uint8Array(W*H);
+  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+    const i = (y*W + x) * 4, u = x / W, v = y / H;
+    const pr = Math.max(1, coef[0][0] + coef[0][1]*u + coef[0][2]*v), pg = Math.max(1, coef[1][0] + coef[1][1]*u + coef[1][2]*v), pb = Math.max(1, coef[2][0] + coef[2][1]*u + coef[2][2]*v);
+    // Se compara el TONO (color normalizado), no el brillo: así una sombra sobre el fondo no cuenta como cable.
+    const sp = d[i] + d[i+1] + d[i+2] + 1, sb = pr + pg + pb + 1;
+    const cd = Math.abs(d[i]/sp - pr/sb) + Math.abs(d[i+1]/sp - pg/sb) + Math.abs(d[i+2]/sp - pb/sb);
+    const lp = d[i]*0.299 + d[i+1]*0.587 + d[i+2]*0.114, lb = pr*0.299 + pg*0.587 + pb*0.114;
+    mask[y*W + x] = ((lp > 35 && cd > 0.10) || lp > lb * 1.2 + 12) ? 1 : 0;
+  }
+  const R = 2, dil = new Uint8Array(W*H);                     // une los hilos aunque haya huecos entre ellos
+  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+    let on = 0;
+    for (let yy = Math.max(0, y-R); yy <= Math.min(H-1, y+R) && !on; yy++)
+      for (let xx = Math.max(0, x-R); xx <= Math.min(W-1, x+R); xx++) if (mask[yy*W+xx]) { on = 1; break; }
+    dil[y*W+x] = on;
+  }
+  const seen = new Uint8Array(W*H), lab = new Int32Array(W*H).fill(-1); let best = null, cid = 0;
+  for (let s0 = 0; s0 < W*H; s0++) {
+    if (!dil[s0] || seen[s0]) continue;
+    const st = [s0]; seen[s0] = 1; let n = 0, x0 = W, y0 = H, x1 = 0, y1 = 0;
+    while (st.length) {
+      const p = st.pop(), x = p % W, y = (p / W) | 0; n++; lab[p] = cid;
+      if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y;
+      for (const q of [x > 0 ? p-1 : -1, x < W-1 ? p+1 : -1, y > 0 ? p-W : -1, y < H-1 ? p+W : -1])
+        if (q >= 0 && dil[q] && !seen[q]) { seen[q] = 1; st.push(q); }
+    }
+    if (!best || n > best.n) best = { n, x0, y0, x1, y1, id: cid };
+    cid++;
+  }
+  if (!best || best.n < W*H*0.05) return null;
+  // Ajuste fino del recuadro: se recorta donde la densidad de píxeles de cable cae (descarta manchas de ruido pegadas al haz)
+  let xl = best.x0, xh = best.x1, yl = best.y0, yh = best.y1;
+  for (let it = 0; it < 2; it++) {
+    const col = new Float32Array(W), row = new Float32Array(H);
+    for (let y = yl; y <= yh; y++) for (let x = xl; x <= xh; x++) { const p = y*W + x; if (mask[p] && lab[p] === best.id) { col[x]++; row[y]++; } }
+    const cm = Math.max(...col), rm = Math.max(...row);
+    while (xl < xh && col[xl] < 0.35 * cm) xl++;
+    while (xh > xl && col[xh] < 0.35 * cm) xh--;
+    while (yl < yh && row[yl] < 0.3 * rm) yl++;
+    while (yh > yl && row[yh] < 0.3 * rm) yh--;
+  }
+  const x0 = xl, y0 = yl, x1 = xh, y1 = yh;
+  if (x1 - x0 < 8 || y1 - y0 < 8) return null;
+  let gx = 0, gy = 0;                                         // bordes verticales → hilos verticales
+  for (let y = y0; y < y1 - 1; y++) for (let x = x0; x < x1 - 1; x++) {
+    const i = (y*W + x) * 4;
+    gx += Math.abs(d[i+4] - d[i]) + Math.abs(d[i+5] - d[i+1]) + Math.abs(d[i+6] - d[i+2]);
+    gy += Math.abs(d[i+W*4] - d[i]) + Math.abs(d[i+W*4+1] - d[i+1]) + Math.abs(d[i+W*4+2] - d[i+2]);
+  }
+  const bgLum = 0.299*(coef[0][0] + coef[0][1]/2 + coef[0][2]/2) + 0.587*(coef[1][0] + coef[1][1]/2 + coef[1][2]/2) + 0.114*(coef[2][0] + coef[2][1]/2 + coef[2][2]/2);
+  return { rect:{ x0:x0/k, y0:y0/k, x1:(x1+1)/k, y1:(y1+1)/k }, vertical: gx >= gy, light: bgLum > 190 };
+}
+
+function autoDetect() {
+  if (!hasImage) { $('rDet').textContent = 'Primero haga o elija una foto.'; return; }
+  const det = detectCable(cv);
+  if (!det) { $('rDet').textContent = 'No se localizan los hilos. Dibuje el recuadro a mano.'; return; }
+  $('orient').value = det.vertical ? 'v' : 'h';
+  cableNote = det.light ? 'Fondo muy claro: los hilos blancos pueden confundirse con él. Para un resultado fiable use un fondo oscuro o gris.' : '';
+  cableRect = det.rect; overrides = [];
+  renderCable(); speakVerdict();
+}
+
+/* ---------- Historial ---------- */
+function loadHist() { try { return JSON.parse(store.get('hist') || '[]'); } catch (_) { return []; } }
+function renderHist() {
+  $('hist').innerHTML = loadHist().map(h => `<li><span class="tag ${h.ok ? 'ok' : 'bad'}">${h.ok ? 'Correcto' : 'Error'}</span> ${h.date} · ${h.preset} · ${h.end}${h.ok ? '' : ' · posiciones: ' + h.errs}</li>`).join('') || '<li>Aún no hay nada guardado.</li>';
+}
+$('bSave').onclick = () => {
+  if (!lastCable) { $('rDet').textContent = 'Primero analice un cable.'; return; }
+  const errs = lastCable.status.flatMap((s, i) => s === 'ok' ? [] : [i + 1]).join(', ');
+  const h = loadHist();
+  h.unshift({ date:new Date().toLocaleString('es-ES'), preset:PRESETS[$('preset').value].name, end:$('end').value, ok:!errs, errs });
+  store.set('hist', JSON.stringify(h.slice(0, 30)));
+  renderHist(); $('rDet').textContent = 'Resultado guardado en el historial.';
+};
+$('bClear').onclick = () => { store.set('hist', '[]'); renderHist(); };
+$('bExport').onclick = () => {
+  const h = loadHist(), b = $('bExport'), label = b.textContent;
+  if (!h.length) { b.textContent = 'Historial vacío'; setTimeout(() => { b.textContent = label; }, 1500); return; }
+  const esc = v => `"${String(v).replace(/"/g, '""')}"`;
+  const rows = [['Fecha', 'Cable', 'Extremo', 'Resultado', 'Posiciones con error'], ...h.map(x => [x.date, x.preset, x.end, x.ok ? 'Correcto' : 'Error', x.errs || ''])];
+  const csv = '﻿' + rows.map(r => r.map(esc).join(';')).join('\r\n');     // BOM y «;» para que Excel en español lo abra bien
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([csv], { type:'text/csv;charset=utf-8' }));
+  a.download = 'historial-cables.csv';
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+};
+$('bAuto').onclick = autoDetect;
+
+/* ================= Resistencias (código de colores) ================= */
+let resVert = true;                         // true: las bandas son franjas verticales (resistencia en horizontal)
+const RES_NAMES = ['negro','marrón','rojo','naranja','amarillo','verde','azul','violeta','gris','blanco','oro','plata'];
+const RES_PAL = [
+  ['negro',[25,25,28]], ['marrón',[105,60,30]], ['rojo',[190,35,35]], ['naranja',[240,130,35]], ['amarillo',[240,215,50]],
+  ['verde',[40,145,70]], ['azul',[45,90,190]], ['violeta',[125,55,150]], ['gris',[125,125,130]], ['blanco',[235,235,235]],
+  ['oro',[190,150,60]], ['plata',[185,185,190]]
+].map(([n, c]) => ({ n, lab: rgb2lab(...c) }));
+const R_DIGIT = { negro:0, 'marrón':1, rojo:2, naranja:3, amarillo:4, verde:5, azul:6, violeta:7, gris:8, blanco:9 };
+const R_MULT = { negro:1, 'marrón':10, rojo:100, naranja:1e3, amarillo:1e4, verde:1e5, azul:1e6, violeta:1e7, gris:1e8, blanco:1e9, oro:0.1, plata:0.01 };
+const R_TOL = { 'marrón':1, rojo:2, verde:0.5, azul:0.25, violeta:0.1, gris:0.05, oro:5, plata:10 };
+
+// En colores vivos pesa más el tono que la luminosidad (la sombra oscurece el amarillo hasta parecer dorado);
+// en los neutros (negro, gris, blanco, plata) la luminosidad es lo que los distingue.
+const resWL = l => Math.hypot(l[1], l[2]) > 25 ? 0.3 : 0.8;
+function classifyRes(r, g, b) {
+  const l = rgb2lab(r, g, b), wl = resWL(l); let best = null, bd = 1e9;
+  for (const p of RES_PAL) {
+    const d = (wl * (l[0] - p.lab[0])) ** 2 + (l[1] - p.lab[1]) ** 2 + (l[2] - p.lab[2]) ** 2;
+    if (d < bd) { bd = d; best = p.n; }
+  }
+  return best;
+}
+// Igual, pero devuelve también el margen (en ΔE) entre el mejor y el segundo color: margen pequeño = lectura dudosa.
+function classifyResM(r, g, b) {
+  const l = rgb2lab(r, g, b), wl = resWL(l), ds = RES_PAL.map(p => ({ n:p.n, d:Math.sqrt((wl * (l[0] - p.lab[0])) ** 2 + (l[1] - p.lab[1]) ** 2 + (l[2] - p.lab[2]) ** 2) })).sort((a, c) => a.d - c.d);
+  return { n:ds[0].n, margin:ds[1].d - ds[0].d };
+}
+
+// Color (Lab) del fondo, estimado en las cuatro esquinas del recuadro.
+function cornerBg(data, w, h) {
+  const patch = Math.max(2, Math.round(Math.min(w, h) * 0.08)), v = [[], [], []];
+  for (const [px0, py0] of [[0, 0], [w - patch, 0], [0, h - patch], [w - patch, h - patch]])
+    for (let yy = py0; yy < py0 + patch; yy++) for (let xx = px0; xx < px0 + patch; xx++) { const i = (yy * w + xx) * 4; v[0].push(data[i]); v[1].push(data[i+1]); v[2].push(data[i+2]); }
+  return rgb2lab(...v.map(a => a.sort((p, q) => p - q)[a.length >> 1]));
+}
+
+// Lee las bandas de color de la resistencia contenida en rect (perfil de color a lo largo de su eje).
+function readResistor(c, rect, vertical, ovr) {
+  const x0 = Math.max(0, Math.round(Math.min(rect.x0, rect.x1))), y0 = Math.max(0, Math.round(Math.min(rect.y0, rect.y1)));
+  const w = Math.min(c.width - x0, Math.round(Math.abs(rect.x1 - rect.x0))), h = Math.min(c.height - y0, Math.round(Math.abs(rect.y1 - rect.y0)));
+  const along = vertical ? w : h, across = vertical ? h : w;
+  if (along < 20 || across < 6) return null;
+  const data = c.getContext('2d', { willReadFrequently:true }).getImageData(x0, y0, w, h).data;
+  // 1) Si el recuadro incluye las patillas (es mucho más largo que ancho), se localiza el cuerpo por su grosor.
+  let jb0 = 0, jb1 = along, k0 = Math.floor(across * 0.3), k1 = Math.max(k0 + 1, Math.ceil(across * 0.7)), maxT = 0, thick = [], bgLab = null;
+  if (along > across * 4.5) {
+    const patch = Math.max(2, Math.round(Math.min(w, h) * 0.08)), bgv = [[], [], []];
+    for (const [px0, py0] of [[0, 0], [w - patch, 0], [0, h - patch], [w - patch, h - patch]])
+      for (let yy = py0; yy < py0 + patch; yy++) for (let xx = px0; xx < px0 + patch; xx++) { const i = (yy * w + xx) * 4; bgv[0].push(data[i]); bgv[1].push(data[i+1]); bgv[2].push(data[i+2]); }
+    bgLab = rgb2lab(...bgv.map(a => a.sort((p, q) => p - q)[a.length >> 1]));
+    const fg = new Uint8Array(along * across); thick = new Array(along).fill(0);
+    for (let j = 0; j < along; j++) for (let k = 0; k < across; k++) {
+      const i = ((vertical ? k : j) * w + (vertical ? j : k)) * 4, l = rgb2lab(data[i], data[i+1], data[i+2]);
+      if (Math.hypot(0.5 * (l[0] - bgLab[0]), l[1] - bgLab[1], l[2] - bgLab[2]) > 9) { fg[j * across + k] = 1; thick[j]++; }
+    }
+    maxT = Math.max(...thick);
+    if (maxT >= across * 0.3) {
+      const solid = thick.map(t => t >= 0.6 * maxT), gapMax = Math.max(4, Math.round(along * 0.03));
+      for (let j = 0, last = -1; j < along; j++) {                       // se cierran los huecos pequeños (bordes entre bandas, ruido)
+        if (!solid[j]) continue;
+        if (last >= 0 && j - last > 1 && j - last <= gapMax) for (let q = last + 1; q < j; q++) solid[q] = true;
+        last = j;
+      }
+      let bs = 0, bl = 0, s = -1;                                        // tramo continuo más largo de columnas «gruesas»
+      for (let j = 0; j <= along; j++) {
+        if (j < along && solid[j]) { if (s < 0) s = j; }
+        else if (s >= 0) { if (j - s > bl) { bl = j - s; bs = s; } s = -1; }
+      }
+      if (bl >= 12) {
+        jb0 = bs; jb1 = bs + bl;
+        const rows = new Array(across).fill(0), Lb = jb1 - jb0;
+        for (let j = jb0; j < jb1; j++) for (let k = 0; k < across; k++) rows[k] += fg[j * across + k];
+        let kmin = 0, kmax = across - 1;
+        while (kmin < kmax && rows[kmin] < Lb * 0.5) kmin++;
+        while (kmax > kmin && rows[kmax] < Lb * 0.5) kmax--;
+        k0 = kmin + Math.floor((kmax - kmin) * 0.3); k1 = Math.max(k0 + 1, kmin + Math.ceil((kmax - kmin) * 0.7));
+      }
+    }
+  }
+  const L = jb1 - jb0;
+
+  // 2) Color medio de cada columna del cuerpo
+  const col = new Array(L);
+  for (let j = 0; j < L; j++) {
+    let r = 0, g = 0, b = 0, n = 0;
+    for (let k = k0; k < k1; k++) { const i = ((vertical ? k : j + jb0) * w + (vertical ? j + jb0 : k)) * 4; r += data[i]; g += data[i+1]; b += data[i+2]; n++; }
+    col[j] = [r / n, g / n, b / n];
+  }
+  // 3) Color del cuerpo = mediana (las bandas ocupan menos de la mitad). Lo que se aparta de él es una banda.
+  const med = ch => { const v = col.map(x => x[ch]).sort((a, b) => a - b); return v[v.length >> 1]; };
+  const bodyLab = rgb2lab(med(0), med(1), med(2));
+  const cls = col.map(([r, g, b]) => {
+    const l = rgb2lab(r, g, b);
+    return Math.hypot(0.3 * (l[0] - bodyLab[0]), l[1] - bodyLab[1], l[2] - bodyLab[2]) < 14 ? 'cuerpo' : classifyRes(r, g, b);
+  });
+  const sm = cls.map((_, j) => {                                         // filtro de moda (ventana de 5) contra el ruido
+    const cnt = {};
+    for (let d = -2; d <= 2; d++) { const v = cls[Math.min(L - 1, Math.max(0, j + d))]; cnt[v] = (cnt[v] || 0) + 1; }
+    return Object.keys(cnt).reduce((a, b) => cnt[a] >= cnt[b] ? a : b);
+  });
+  let runs = [];
+  sm.forEach((v, j) => { const l = runs[runs.length - 1]; if (l && l.cls === v) l.e = j + 1; else runs.push({ cls:v, s:j, e:j + 1 }); });
+  const minLen = Math.max(2, Math.round(L * 0.02));
+  for (let i = runs.length - 1; i >= 0; i--) {                           // las rachas muy cortas se funden con la vecina
+    if (runs[i].e - runs[i].s >= minLen || runs.length === 1) continue;
+    if (i > 0) runs[i-1].e = runs[i].e; else runs[i+1].s = runs[i].s;
+    runs.splice(i, 1);
+  }
+  runs = runs.reduce((a, r) => { const l = a[a.length - 1]; if (l && l.cls === r.cls) l.e = r.e; else a.push({ ...r }); return a; }, []);
+  const body = 'cuerpo';
+  const bands = runs.filter(r => r.cls !== body).map((r, i) => {
+    const a = Math.floor(r.s + (r.e - r.s) * 0.2), b = Math.max(a + 1, Math.ceil(r.e - (r.e - r.s) * 0.2));
+    let sr = 0, sg = 0, sb = 0; for (let j = a; j < b; j++) { sr += col[j][0]; sg += col[j][1]; sb += col[j][2]; }
+    const m = classifyResM(sr / (b - a), sg / (b - a), sb / (b - a));
+    return { auto:r.cls, name:ovr[i] || r.cls, s:r.s + jb0, e:r.e + jb0, manual:!!ovr[i], unsure:!ovr[i] && (m.n !== r.cls || m.margin < 7) };   // dudosa si otro color casi empata
+  });
+  // Fiabilidad: motivos por los que la lectura podría ser errónea
+  const reasons = [], nU = bands.filter(b => b.unsure).length, bg2 = bgLab || cornerBg(data, w, h);
+  if (nU) reasons.push(`${nU} banda(s) no se distinguen con claridad`);
+  if (Math.hypot(0.5 * (bodyLab[0] - bg2[0]), bodyLab[1] - bg2[1], bodyLab[2] - bg2[2]) < 20) reasons.push('el fondo se parece al color de la resistencia');
+  if (L < 120) reasons.push('la resistencia aparece muy pequeña en la foto');
+  return { x0, y0, w, h, vertical, across, along, body, bands, jb:[jb0, jb1], reasons };
+}
+
+// Valor de la resistencia a partir de sus bandas (4 o 5). Devuelve { value, tol, seq, note } o { error }.
+function resSolve(bands, nSel) {
+  const names = bands.map(b => b.name), n = nSel || names.length;
+  if (n !== 4 && n !== 5) return { error: `Se detectan ${names.length} bandas; las resistencias tienen 4 o 5.` };
+  if (names.length !== n) return { error: `Se detectan ${names.length} bandas y se esperaban ${n}. Acerque la cámara, mejore la luz o corrija las bandas tocándolas en la lista.` };
+  const isTol = c => c === 'oro' || c === 'plata';
+  let seq = names, note = '', weak = false;                              // weak: el sentido de lectura es una deducción poco segura
+  if (isTol(names[0]) && !isTol(names[n - 1])) { seq = [...names].reverse(); note = 'Se leyó al revés: la banda dorada o plateada va al final.'; }
+  else if (!isTol(names[n - 1])) {
+    const gaps = []; for (let i = 1; i < n; i++) gaps.push(bands[i].s - bands[i-1].e);
+    const gl = gaps[n - 2], gf = gaps[0];
+    if (gf > gl * 1.4) { seq = [...names].reverse(); note = 'Se leyó al revés por el hueco entre bandas.'; weak = true; }
+    else if (!(gl > gf * 1.4)) { note = 'No se ve claramente cuál es la banda de tolerancia: compruebe el sentido de lectura.'; weak = true; }
+  }
+  const digits = seq.slice(0, n - 2), mult = seq[n - 2], tol = seq[n - 1];
+  const bad = digits.find(d => !(d in R_DIGIT));
+  if (bad) return { error: `La banda «${bad}» no puede ser un dígito. Corrija las bandas tocándolas en la lista.` };
+  if (!(tol in R_TOL)) return { error: `La banda «${tol}» no es una tolerancia válida. Corrija las bandas tocándolas en la lista.` };
+  return { value: digits.reduce((a, d) => a * 10 + R_DIGIT[d], 0) * R_MULT[mult], tol: R_TOL[tol], seq, note, weak };
+}
+function formatOhm(v) {
+  const f = x => String(Math.round(x * 100) / 100).replace('.', ',');
+  return v >= 1e9 ? f(v / 1e9) + ' GΩ' : v >= 1e6 ? f(v / 1e6) + ' MΩ' : v >= 1e3 ? f(v / 1e3) + ' kΩ' : f(v) + ' Ω';
+}
+const ohmSpoken = s => s.replace('GΩ', 'gigaohmios').replace('MΩ', 'megaohmios').replace('kΩ', 'kiloohmios').replace('Ω', 'ohmios');
+
+let resLast = '', resCur = null, resCmp = null, photoId = 0;     // photoId: cambia con cada foto nueva (ver drawSource)
+
+// Dibuja el recuadro de la resistencia y sus bandas sobre el contexto g.
+function drawResOn(g, info, fs) {
+  const { x0, y0, w, h, vertical, across } = info, W = g.canvas.width, H = g.canvas.height;
+  g.setLineDash([8, 6]); g.lineWidth = 4; g.strokeStyle = 'rgba(0,0,0,.8)'; g.strokeRect(x0, y0, w, h);
+  g.lineWidth = 2; g.strokeStyle = 'rgba(255,255,255,.95)'; g.strokeRect(x0, y0, w, h); g.setLineDash([]);
+  g.font = `800 ${fs}px "Inter", system-ui, sans-serif`; g.textBaseline = 'middle'; g.textAlign = 'center';
+  info.bands.forEach((b, i) => {
+    const bx = vertical ? x0 + b.s : x0 + across * 0.2, by = vertical ? y0 + across * 0.2 : y0 + b.s, bw = vertical ? b.e - b.s : across * 0.6, bh = vertical ? across * 0.6 : b.e - b.s;
+    g.lineWidth = 4; g.strokeStyle = 'rgba(0,0,0,.85)'; g.strokeRect(bx, by, bw, bh);
+    g.lineWidth = 2; g.strokeStyle = b.unsure ? '#e3a008' : '#6ea1ff'; g.strokeRect(bx, by, bw, bh);
+    chip(String(i + 1), vertical ? bx + bw/2 : x0 - fs, vertical ? y0 - fs : by + bh/2, fs, b.unsure ? '#e3a008' : '#6ea1ff', g, W, H);
+  });
+}
+
+// Resultado (valor, aviso de fiabilidad y lista de bandas) para la foto o para la cámara en vivo.
+function resultUI(info, live) {
+  const V = $('resVerdict'), ul = $('resList'); ul.innerHTML = '';
+  const say = (cls, html) => { V.className = 'verdict ' + cls; V.innerHTML = html; };
+  info.bands.forEach((b, i) => {
+    const li = document.createElement('li'); li.className = 'crow'; if (!live) li.style.cursor = 'pointer';
+    li.innerHTML = `<b>${i + 1}</b>${swatch(b.name)}<span>${b.name}${b.manual ? ' <small>(manual)</small>' : ''}</span>` +
+      (b.unsure ? '<span class="tag warn">Dudosa</span>' : '') + (live ? '' : '<small>· toque para cambiar</small>');
+    if (!live) li.onclick = () => { const cur = RES_NAMES.indexOf(b.name); resOv[i] = RES_NAMES[(cur + 1) % RES_NAMES.length]; renderResistor(); };
+    ul.appendChild(li);
+  });
+  const sol = resSolve(info.bands, +$('rBands').value), reasons = [...info.reasons];
+  if (sol.weak) reasons.push(sol.note.replace(/\.$/, ''));
+  const bandsTxt = (sol.seq || info.bands.map(b => b.name)).join(', ');
+  let cmpHtml = '';
+  if (!live && resCmp) {                                              // contraste con la foto anterior
+    if (!sol.error && !resCmp.result && resCmp.prev.photoId !== photoId) resCmp.result = sol.seq.join(',') === resCmp.prev.key ? 'same' : 'diff';
+    if (resCmp.result === 'same') cmpHtml = '<div class="hint" style="margin-top:8px"><b>Las dos fotos dan la misma lectura:</b> es más fiable.</div>';
+    else if (resCmp.result === 'diff') { reasons.push('esta foto no da la misma lectura que la anterior'); cmpHtml = `<div class="hint" style="margin-top:8px"><b>Las dos fotos no coinciden.</b> Lectura anterior: ${resCmp.prev.key.replace(/,/g, ', ')}.</div>`; }
+    else cmpHtml = '<div class="hint" style="margin-top:8px">Haga ahora otra foto de la misma resistencia (otro ángulo o luz) y se compararán las dos lecturas.</div>';
+  }
+  if (sol.error) { say('warn', `<span class="badge warn">Revisar</span>${sol.error}<div class="hint" style="margin-top:8px">Bandas detectadas: ${bandsTxt}.</div>${cmpHtml}${noticeHtml(reasons)}`); resCur = null; return; }
+  const val = formatOhm(sol.value), tolTxt = String(sol.tol).replace('.', ',');
+  say('warn', `<span class="badge warn">${reasons.length ? 'Revisar' : 'Experimental'}</span><b style="font-size:1.4rem">${val}</b> <span>±${tolTxt} %</span>` +
+    `<div class="hint" style="margin-top:8px">Bandas en orden de lectura: ${bandsTxt}.${sol.note && !sol.weak ? ' ' + sol.note : ''}</div>` +
+    `<div class="hint">Verifique con un polímetro antes de usarla.</div>${cmpHtml}${noticeHtml(reasons)}`);
+  resLast = `Resistencia de ${ohmSpoken(val)}, tolerancia ${tolTxt} por ciento. Bandas: ${bandsTxt}.`;
+  if (!live) resCur = { key: sol.seq.join(','), text: `${val} ±${tolTxt} % (bandas: ${bandsTxt})` };
+}
+
+function renderResistor() {
+  octx.clearRect(0, 0, ov.width, ov.height);
+  const V = $('resVerdict'); $('resList').innerHTML = '';
+  if (!cableRect) { V.className = 'verdict idle'; V.innerHTML = 'Haga la foto de la resistencia de cerca y pulse «Detectar resistencia», o dibuje con el dedo un recuadro sobre ella.'; return; }
+  const info = readResistor(cv, cableRect, resVert, resOv);
+  if (!info || !info.bands.length) {
+    V.className = 'verdict warn';
+    V.innerHTML = '<span class="badge warn">Revisar</span>No se distinguen bandas de color. Acerque la cámara, use buena luz y encuadre solo la resistencia.' + noticeHtml(info ? info.reasons : ['el recuadro es demasiado pequeño']);
+    return;
+  }
+  drawResOn(octx, info, Math.max(14, Math.round(ov.width / 40 * bigK())));
+  resultUI(info, false);
+}
+
+// Lectura continua con la cámara en vivo, con un recuadro guía para colocar la resistencia.
+let liveResKey = '', liveResCount = 0, liveResSpoken = '';
+function liveRes() {
+  const lo = $('liveOv');
+  if (!vid.videoWidth) return;
+  const W = 640, k = W / vid.videoWidth;
+  liveTmp.width = W; liveTmp.height = Math.round(vid.videoHeight * k);
+  liveTmp.getContext('2d', { willReadFrequently:true }).drawImage(vid, 0, 0, liveTmp.width, liveTmp.height);
+  if (lo.width !== W || lo.height !== liveTmp.height) { lo.width = W; lo.height = liveTmp.height; }
+  const g = lo.getContext('2d'); g.clearRect(0, 0, lo.width, lo.height);
+  const gw = lo.width * 0.7, gh = gw / 3, gx = (lo.width - gw) / 2, gy = (lo.height - gh) / 2;
+  g.setLineDash([10, 8]); g.lineWidth = 4; g.strokeStyle = 'rgba(0,0,0,.8)'; g.strokeRect(gx, gy, gw, gh);
+  g.lineWidth = 2; g.strokeStyle = 'rgba(255,255,255,.95)'; g.strokeRect(gx, gy, gw, gh); g.setLineDash([]);
+  g.font = `700 ${Math.max(13, Math.round(lo.width / 38))}px "Inter", system-ui, sans-serif`; g.textAlign = 'center'; g.fillStyle = '#fff'; g.shadowColor = '#000'; g.shadowBlur = 4;
+  g.fillText('Coloque la resistencia dentro del recuadro', lo.width / 2, gy - 14); g.shadowBlur = 0;
+  const det = detectCable(liveTmp), rect = det ? det.rect : { x0:gx, y0:gy, x1:gx + gw, y1:gy + gh };
+  const info = readResistor(liveTmp, rect, det ? det.vertical : true, []);
+  if (!info || !info.bands.length) {
+    $('resVerdict').className = 'verdict idle'; $('resVerdict').textContent = 'No se distinguen bandas. Acerque la resistencia hasta llenar el recuadro y use buena luz.';
+    liveResKey = ''; return;
+  }
+  drawResOn(g, info, Math.max(12, Math.round(lo.width / 32)));
+  resultUI(info, true);
+  const sol = resSolve(info.bands, +$('rBands').value), key = sol.error ? '' : sol.seq.join(',');
+  liveResCount = key && key === liveResKey ? liveResCount + 1 : 1; liveResKey = key;
+  if (key && liveResCount === 3 && key !== liveResSpoken && !info.reasons.length) { liveResSpoken = key; speak(resLast); }
+}
+
+function autoDetectRes() {
+  if (!hasImage) { $('resVerdict').className = 'verdict idle'; $('resVerdict').textContent = 'Primero haga o elija una foto.'; return; }
+  const det = detectCable(cv);
+  if (!det) { $('resVerdict').className = 'verdict warn'; $('resVerdict').innerHTML = '<span class="badge warn">Revisar</span>No se localiza la resistencia. Dibuje el recuadro a mano.'; return; }
+  resVert = det.vertical; cableRect = det.rect; resOv = [];
+  renderResistor(); if (resLast) speak(resLast);
+}
+
+/* ================= Sonido, vibración, colores guardados y compartir ================= */
+let soundOn = false, actx = null, lastVar = 0, lastPick = null, refColor = null, favs = [];
+try { favs = JSON.parse(store.get('fav') || '[]'); } catch (_) { favs = []; }
+const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]));
+
+// Cada color tiene su nota (más agudo = más «frío»); «claro» añade un sonido agudo y «oscuro» uno grave. En móviles con vibración, un patrón propio.
+const TONE = { rojo:262, naranja:294, amarillo:330, 'verde lima':349, oliva:370, verde:392, turquesa:440, celeste:494, azul:523, violeta:587, magenta:622, rosa:659, 'marrón':196, beige:740, blanco:880, gris:147, negro:98 };
+const VIB = { rojo:[60], naranja:[60,50,60], amarillo:[60,50,60,50,60], 'verde lima':[60,50,60,50,60,50,60], verde:[160], turquesa:[160,60,60], celeste:[160,60,60,60,60],
+              azul:[160,60,160], violeta:[260], 'marrón':[260,60,60], rosa:[60,40,160], magenta:[160,40,60], negro:[400], blanco:[40], gris:[40,40,40,40] };
+function playColor(base, full) {
+  if (!soundOn) return;
+  try {
+    actx = actx || new (window.AudioContext || window.webkitAudioContext)();
+    if (actx.state === 'suspended') actx.resume();
+    const f = TONE[base] || 330, t0 = actx.currentTime;
+    const beep = (freq, start, dur) => {
+      const o = actx.createOscillator(), g = actx.createGain();
+      o.type = base === 'negro' || base === 'gris' ? 'square' : 'sine'; o.frequency.value = freq;
+      g.gain.setValueAtTime(0.0001, t0 + start); g.gain.exponentialRampToValueAtTime(0.22, t0 + start + 0.02); g.gain.exponentialRampToValueAtTime(0.0001, t0 + start + dur);
+      o.connect(g); g.connect(actx.destination); o.start(t0 + start); o.stop(t0 + start + dur + 0.03);
+    };
+    beep(f, 0, 0.22);
+    if (/claro/.test(full || '')) beep(f * 1.5, 0.27, 0.16);
+    if (/oscuro/.test(full || '')) beep(f * 0.75, 0.27, 0.16);
+    if (navigator.vibrate) navigator.vibrate(VIB[base] || [60]);
+  } catch (_) {}
+}
+const announceColor = n => { speak(n.full); playColor(n.base, n.full); };
+$('bSnd').onclick = () => { soundOn = !soundOn; store.set('snd', soundOn ? '1' : '0'); updToggles(); if (soundOn) playColor('verde', 'verde'); };
+
+/* ---------- Colores guardados ---------- */
+const saveFavs = () => store.set('fav', JSON.stringify(favs.slice(0, 30)));
+function renderFavs() {
+  const ul = $('favList'); ul.innerHTML = '';
+  if (!favs.length) { ul.innerHTML = '<li style="cursor:default">Aún no hay colores guardados.</li>'; return; }
+  favs.forEach(f => {
+    const li = document.createElement('li'); if (refColor && refColor.id === f.id) li.className = 'sel';
+    li.innerHTML = `<div class="sw" style="background:${hex(...f.rgb)}"></div><div style="flex:1"><b>${esc(f.name)}</b><small>${hex(...f.rgb)} · ${cap(colorName(...f.rgb).full)}</small></div>` +
+      '<button class="btn" type="button" style="min-height:36px;padding:4px 12px">Quitar</button>';
+    li.onclick = () => {
+      refColor = refColor && refColor.id === f.id ? null : { id:f.id, name:f.name, rgb:f.rgb };
+      renderFavs();
+      $('rDet').textContent = refColor ? `Referencia activa: «${f.name}». Toque puntos de la foto para compararlos con ella.` : 'Referencia quitada.';
+    };
+    li.querySelector('button').onclick = e => { e.stopPropagation(); favs = favs.filter(x => x.id !== f.id); if (refColor && refColor.id === f.id) refColor = null; saveFavs(); renderFavs(); };
+    ul.appendChild(li);
+  });
+}
+function flashBtn(btn, text) { const l = btn.dataset.l || btn.textContent; btn.dataset.l = l; btn.textContent = text; clearTimeout(btn._t); btn._t = setTimeout(() => { btn.textContent = l; }, 1800); }
+$('bFavAdd').onclick = () => {
+  if (!lastPick) { flashBtn($('bFavAdd'), 'Toque antes un punto'); return; }
+  favs.unshift({ id:Date.now(), name:($('favName').value.trim() || cap(colorName(...lastPick).full)).slice(0, 40), rgb:lastPick });
+  saveFavs(); $('favName').value = ''; renderFavs(); flashBtn($('bFavAdd'), 'Guardado');
+};
+function refCompareText(rgb) {                                      // frente al color de referencia guardado
+  const a = rgb2lab(...rgb), b = rgb2lab(...refColor.rgb), dE = Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]);
+  const sp = document.createElement('span');
+  sp.textContent = ` · Frente a «${refColor.name}»: ${dE < 5 ? 'es el mismo color' : dE < 12 ? 'es un color parecido' : 'es un color distinto'}`;
+  $('rDet').appendChild(sp);
+}
+
+/* ---------- Compartir y descargar el resultado ---------- */
+function compositeCanvas() {
+  const c = document.createElement('canvas'); c.width = cv.width; c.height = cv.height;
+  const g = c.getContext('2d'); g.drawImage(cv, 0, 0); g.drawImage(ov, 0, 0);
+  return c;
+}
+// Devuelve 'compartido', 'copiado', 'error' o '' (cancelado por el usuario).
+async function shareResult(title, text, withImage) {
+  try {
+    if (navigator.share) {
+      const data = { title, text };
+      if (withImage && hasImage) {
+        const blob = await new Promise(r => compositeCanvas().toBlob(r, 'image/png')), file = new File([blob], 'resultado.png', { type:'image/png' });
+        if (navigator.canShare && navigator.canShare({ files:[file] })) data.files = [file];
+      }
+      await navigator.share(data); return 'compartido';
+    }
+    await navigator.clipboard.writeText(title + '\n' + text); return 'copiado';
+  } catch (e) {
+    if (e && e.name === 'AbortError') return '';
+    try { await navigator.clipboard.writeText(title + '\n' + text); return 'copiado'; } catch (_) { return 'error'; }
+  }
+}
+const shareMsg = r => r === 'compartido' ? 'Compartido' : r === 'copiado' ? 'Copiado al portapapeles' : r === 'error' ? 'No se pudo compartir' : null;
+const downloadCanvas = name => { const a = document.createElement('a'); a.href = compositeCanvas().toDataURL('image/png'); a.download = name; document.body.appendChild(a); a.click(); a.remove(); };
+function cableText() {
+  const plain = $('verdict').innerText.replace(/\s+/g, ' ').trim();
+  return `${PRESETS[$('preset').value].name} · ${$('end').value}\nOrden detectado: ${lastCable.info.items.map((it, i) => (i + 1) + ' ' + it.spec).join(', ')}\nResultado: ${plain}`;
+}
+$('bShare').onclick = async () => {
+  if (!lastCable) { flashBtn($('bShare'), 'Primero analice un cable'); return; }
+  const m = shareMsg(await shareResult('Comprobación de cable', cableText(), true)); if (m) flashBtn($('bShare'), m);
+};
+$('bImg').onclick = () => { if (!hasImage) { flashBtn($('bImg'), 'Primero haga una foto'); return; } downloadCanvas('resultado-cable.png'); };
+$('bResShare').onclick = async () => {
+  if (!resCur) { flashBtn($('bResShare'), 'Primero analice una resistencia'); return; }
+  const m = shareMsg(await shareResult('Lectura de resistencia', resCur.text + '\n' + $('resVerdict').innerText.replace(/\s+/g, ' ').trim(), true)); if (m) flashBtn($('bResShare'), m);
+};
+$('bResCmp').onclick = () => {
+  if (!resCur) { flashBtn($('bResCmp'), 'Primero analice una resistencia'); return; }
+  resCmp = { prev:{ key:resCur.key, photoId, text:resCur.text }, result:null };
+  renderResistor();
+};
+
+/* ================= Cámara en vivo ================= */
+let ledMode = false, guide = null, ledName = '', ledCount = 0, ledSpoken = '';
+
+async function startLive() {
+  if (stream) return true;
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({ video:{ facingMode:{ ideal:'environment' }, width:{ ideal:1280 } }, audio:false });
+  } catch (err) { alert('No se pudo abrir la cámara: ' + err.message + '\n(Requiere https o localhost.) Use «Hacer foto» como alternativa.'); return false; }
+  vid.srcObject = stream; await vid.play();
+  $('liveStage').style.display = 'block'; $('ret').style.display = 'block';
+  $('liveBtns').hidden = false;
+  syncReadout();
+  liveCableTimer = setInterval(liveCable, 700);
+  const t = document.createElement('canvas'); t.width = t.height = 11;
+  const tc = t.getContext('2d', { willReadFrequently:true });
+  const led = document.createElement('canvas'); led.width = led.height = 48;
+  const lc = led.getContext('2d', { willReadFrequently:true });
+  liveTimer = setInterval(() => {
+    if (!vid.videoWidth) return;
+    if (ledMode) {
+      const s = Math.min(vid.videoWidth, vid.videoHeight) * 0.12;
+      lc.drawImage(vid, (vid.videoWidth - s)/2, (vid.videoHeight - s)/2, s, s, 0, 0, 48, 48);
+      ledRead(lc); return;
+    }
+    const s = Math.min(vid.videoWidth, vid.videoHeight) * 0.03;
+    tc.drawImage(vid, (vid.videoWidth - s)/2, (vid.videoHeight - s)/2, s, s, 0, 0, 11, 11);
+    const rgb = gain(avg(tc.getImageData(0, 0, 11, 11).data));
+    show(rgb, 'Centro de la cámara');
+    const nm = colorName(...rgb).full;                 // solo habla cuando el color se mantiene estable
+    liveCount = nm === liveName ? liveCount + 1 : 1; liveName = nm;
+    if (liveCount === 4 && nm !== liveSpoken) { liveSpoken = nm; announceColor(colorName(...rgb)); }
+  }, 250);
+  return true;
+}
+$('bLive').onclick = startLive;
+$('bShot').onclick = () => { drawSource(vid, vid.videoWidth, vid.videoHeight); stopLive(); };
+$('bStop').onclick = stopLive;
+$('bLed').onclick = () => {
+  ledMode = !ledMode; ledName = ''; ledSpoken = '';
+  $('bLed').setAttribute('aria-pressed', String(ledMode));
+  if (!ledMode) { liveName = ''; liveSpoken = ''; }
+};
+
+// Modo LED: un LED muy brillante sale casi blanco en el centro; el color real está en el halo.
+function ledRead(lc) {
+  const d = lc.getImageData(0, 0, 48, 48).data;
+  let maxL = 0, clip = 0, n = 0, cx = 0, cy = 0;
+  for (let i = 0; i < d.length; i += 4) {
+    const [h, s, l] = rgb2hsl(d[i], d[i+1], d[i+2]);
+    if (l > maxL) maxL = l;
+    if (l > 0.96) clip++;
+    if (s > 0.35 && l > 0.25 && l < 0.95) { cx += Math.cos(h * Math.PI / 180); cy += Math.sin(h * Math.PI / 180); n++; }
+  }
+  let name, rgb = [30, 30, 30], detail;
+  if (maxL < 0.22) { name = 'Apagado o sin luz'; detail = 'No se ve ninguna luz en la mirilla.'; }
+  else if (n < 25) {
+    name = clip > 60 ? 'Demasiado brillante' : 'Sin color claro'; rgb = [235, 235, 235];
+    detail = clip > 60 ? 'La luz satura la cámara: aleje el móvil o reduzca el brillo.' : 'Acerque la cámara y centre el LED en la mirilla.';
+  } else {
+    const h = (Math.atan2(cy, cx) * 180 / Math.PI + 360) % 360;
+    name = h < 15 || h >= 345 ? 'Rojo' : h < 48 ? 'Ámbar o naranja' : h < 70 ? 'Amarillo' : h < 170 ? 'Verde' : h < 260 ? 'Azul' : h < 330 ? 'Violeta' : 'Rosa o magenta';
+    rgb = hsl2rgb(h, 0.9, 0.5); detail = 'Color del halo del LED.';
+  }
+  $('rSw').style.background = hex(...rgb); $('rName').textContent = 'LED: ' + name; $('rDet').textContent = detail;
+  ledCount = name === ledName ? ledCount + 1 : 1; ledName = name;
+  if (ledCount === 4 && name !== ledSpoken) { ledSpoken = name; speak('LED: ' + name); }
+}
+
+/* ---------- Asistente de crimpado guiado ---------- */
+const speakable = s => s.replace(/^blanco-(.+)$/, 'blanco con raya $1').replace('verde-amarillo', 'verde y amarillo');
+async function startGuide() {
+  if (PRESETS[$('preset').value].ref) return;
+  if (!(await startLive())) return;
+  guide = { step: 1, ok: 0 };
+  $('bGuide').setAttribute('aria-pressed', 'true'); $('bGuide').textContent = 'Detener asistente';
+  $('guideCard').hidden = false; renderGuide();
+  speak(`Paso 1: coloque ${speakable(currentSeq()[0])}`, true);
+}
+function stopGuide() {
+  guide = null;
+  $('bGuide').setAttribute('aria-pressed', 'false'); $('bGuide').textContent = 'Asistente de crimpado';
+  $('guideCard').hidden = true;
+}
+function renderGuide(msg) {
+  if (!guide) return;
+  const seq = currentSeq(), n = seq.length, s = seq[guide.step - 1];
+  $('guideStep').innerHTML = `<div class="gtitle">Paso ${guide.step} de ${n}</div><div class="gwire">${swatch(s)}<b>${s}</b></div>` +
+    `<div class="gbar"><i style="width:${(guide.step - 1) / n * 100}%"></i></div>` +
+    `<p class="hint" id="guideMsg">${msg || 'Coloque este hilo a continuación de los anteriores y manténgalo a la vista de la cámara.'}</p>`;
+}
+const guideMsg = t => { const el = $('guideMsg'); if (el) el.textContent = t; };
+function guideCheck(status) {
+  const seq = currentSeq(), n = seq.length, allOk = status.every(s => s === 'ok');
+  guide.ok = allOk ? guide.ok + 1 : 0;
+  if (!allOk) { const i = status.findIndex(s => s !== 'ok'); guideMsg(`El hilo ${i + 1} todavía no coincide: debería ser ${seq[i]}.`); return; }
+  if (guide.ok < 3) { guideMsg('Detectado correctamente: manténgalo un momento…'); return; }
+  guide.ok = 0;
+  if (guide.step >= n) {
+    endResults[$('preset').value + '|' + $('end').value] = { ok: true }; renderEndSum();
+    stopGuide();
+    speak(`Cable completo. Los ${n} hilos están en el orden correcto.`, true);
+    return;
+  }
+  guide.step++;
+  renderGuide('Correcto. Coloque el siguiente hilo.');
+  speak(`Correcto. Paso ${guide.step}: coloque ${speakable(seq[guide.step - 1])}`, true);
+}
+$('bGuide').onclick = () => { if (guide) stopGuide(); else startGuide(); };
+$('bResAuto').onclick = autoDetectRes;
+$('rBands').onchange = () => { if (mode === 'resistor') renderResistor(); };
+$('bResRead').onclick = () => { if (resLast) speak(resLast, true); else { $('resVerdict').className = 'verdict idle'; $('resVerdict').textContent = 'Primero analice una resistencia para poder leer su valor.'; } };
+
+/* ---------- Orden detectado en una frase ---------- */
+function showOrder(info) {
+  $('orderText').innerHTML = `<p class="hint" style="margin:0 0 8px">Detectado ${info.vertical ? 'de izquierda a derecha' : 'de arriba a abajo'}:</p>` +
+    `<div class="ords">${info.items.map((it, i) => `<span class="ord">${swatch(it.spec)}<b>${i + 1}</b>${it.spec}</span>`).join('')}</div>`;
+  $('orderCard').hidden = false;
+}
+const orderSentence = info => `${info.vertical ? 'De izquierda a derecha' : 'De arriba a abajo'}: ` + info.items.map((it, i) => `${i + 1}, ${speakable(it.spec)}`).join('; ') + '.';
+$('bRead').onclick = () => {
+  if (!lastCable) { $('verdict').className = 'verdict idle'; $('verdict').innerHTML = 'Primero analice un cable para poder leer el orden.'; return; }
+  const plain = $('verdict').innerText.replace(/[^\p{L}\p{N}\s.,:¡!¿?()-]/gu, '').replace(/\s+/g, ' ');
+  speak(orderSentence(lastCable.info) + ' ' + plain.slice(0, 200), true);
+};
+
+// Lectura continua de cables con la cámara en vivo: detecta el haz, lo compara y avisa cuando el estado se mantiene.
+const liveTmp = document.createElement('canvas');
+function liveCable() {
+  const lo = $('liveOv');
+  if (stream && mode === 'resistor' && vid.videoWidth) { liveRes(); return; }
+  if (!stream || mode !== 'cable' || !vid.videoWidth) { lo.getContext('2d').clearRect(0, 0, lo.width, lo.height); return; }
+  const W = 640, k = W / vid.videoWidth;
+  liveTmp.width = W; liveTmp.height = Math.round(vid.videoHeight * k);
+  liveTmp.getContext('2d', { willReadFrequently:true }).drawImage(vid, 0, 0, liveTmp.width, liveTmp.height);
+  if (lo.width !== W || lo.height !== liveTmp.height) { lo.width = W; lo.height = liveTmp.height; }
+  const g = lo.getContext('2d');
+  g.clearRect(0, 0, lo.width, lo.height);
+  const det = detectCable(liveTmp);
+  if (!det) {
+    $('verdict').className = 'verdict idle';
+    $('verdict').innerHTML = 'No se localizan los hilos. Encuadre el cable sobre un fondo liso y oscuro.';
+    if (guide) guideMsg('No se ven los hilos: encuadre el cable sobre un fondo liso y oscuro.');
+    liveState = ''; return;
+  }
+  cableNote = det.light ? 'Fondo muy claro: los hilos blancos pueden confundirse con él.' : '';
+  const info = cableComputeOn(liveTmp, det.rect, det.vertical, [], guide ? currentSeq().slice(0, guide.step) : null);
+  if (!info) return;
+  const status = cableVerdict(info);
+  drawCableOn(g, lo.width, lo.height, info, status, Math.max(12, Math.round(lo.width / 32)));
+  lastCable = { info, status }; showOrder(info);
+  if (guide) { guideCheck(status); return; }
+  const st = status.every(s => s === 'ok') ? 'ok' : status.includes('bad') ? 'bad' : 'warn';
+  liveStateCount = st === liveState ? liveStateCount + 1 : 1; liveState = st;
+  if (liveStateCount === 3 && st !== liveStateSpoken) { liveStateSpoken = st; speakVerdict(); }
+}
+
+function stopLive() {
+  if (guide) stopGuide();
+  ledMode = false; $('bLed').setAttribute('aria-pressed', 'false');
+  clearInterval(liveCableTimer); liveState = ''; liveStateSpoken = '';
+  { const lo = $('liveOv'); lo.getContext('2d').clearRect(0, 0, lo.width, lo.height); }
+  clearInterval(liveTimer);
+  if (stream) stream.getTracks().forEach(t => t.stop());
+  stream = null; vid.srcObject = null;
+  $('liveStage').style.display = 'none'; $('ret').style.display = 'none';
+  $('liveBtns').hidden = true;
+  syncReadout();
+}
+
+var liveName = '', liveCount = 0, liveSpoken = '', liveCableTimer = null, liveState = '', liveStateCount = 0, liveStateSpoken = '';
+voice = store.get('voz') === '1';
+labelsOn = store.get('lab') !== '0';
+patternsOn = store.get('pat') === '1';
+soundOn = store.get('snd') === '1';
+if (store.get('big') === '1') document.body.classList.add('big');
+updToggles(); updWB(); renderHist(); renderFavs();
+applyMode('simple');
+</script>
+</body>
+</html>
