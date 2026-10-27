@@ -352,11 +352,29 @@
   <p class="tip" data-modes="simple detail">La iluminación altera los colores: una luz amarillenta hace que el blanco parezca crema. Se obtienen mejores resultados con luz blanca y sin reflejos.</p>
   <p class="tip" data-modes="cable" hidden>Coloque los hilos planos y rectos sobre un fondo liso y mate, mejor oscuro o gris, con buena luz y sin sombras. Haga la foto desde arriba. Toque un hilo dentro del recuadro para corregir manualmente una detección errónea.</p>
 </main>
+<div class="card" id="updBar" hidden style="position:fixed;left:16px;right:16px;bottom:12px;max-width:688px;margin:0 auto;z-index:30;display:flex;align-items:center;gap:12px;box-shadow:0 8px 24px rgba(0,0,0,.6)">
+  <span style="flex:1;font-size:.92rem">Hay una versión nueva de la app.</span>
+  <button class="btn primary" type="button" style="min-height:44px" onclick="location.reload()">Actualizar ahora</button>
+</div>
 <footer></footer>
 
 <script>
 'use strict';
-if ('serviceWorker' in navigator && location.protocol !== 'file:') navigator.serviceWorker.register('sw.js').catch(() => {});
+// Actualización automática: se busca una versión nueva al abrir la app, al volver a ella y cada 30 min.
+// Si se encuentra y no hay una foto en pantalla, se recarga sola; si la hay, se muestra un aviso para no perder el trabajo.
+if ('serviceWorker' in navigator && location.protocol !== 'file:') {
+  let teniaControl = !!navigator.serviceWorker.controller;
+  navigator.serviceWorker.register('sw.js', { updateViaCache:'none' }).then(reg => {
+    const buscar = () => reg.update().catch(() => {});
+    document.addEventListener('visibilitychange', () => { if (!document.hidden) buscar(); });
+    setInterval(buscar, 30 * 60 * 1000);
+  }).catch(() => {});
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    if (!teniaControl) { teniaControl = true; return; }          // primera instalación: no hay nada que recargar
+    if (typeof hasImage !== 'undefined' && hasImage) document.getElementById('updBar').hidden = false;
+    else location.reload();
+  });
+}
 
 const $ = id => document.getElementById(id);
 const cv = $('cv'), ov = $('ov'), ctx = cv.getContext('2d', { willReadFrequently:true }), octx = ov.getContext('2d');

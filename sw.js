@@ -1,8 +1,11 @@
-﻿const CACHE = 'colores-v38';
+﻿// Copia sin conexión con «red primero»: siempre se intenta cargar la versión más nueva y,
+// si no hay conexión (o tarda más de 4 s), se usa la copia guardada.
+const CACHE = 'colores-v41';
 const FILES = ['./', './index.html', './manifest.webmanifest', './icon-192.png', './icon-512.png'];
 
 self.addEventListener('install', e => {
-  e.waitUntil(caches.open(CACHE).then(c => c.addAll(FILES)).then(() => self.skipWaiting()));
+  self.skipWaiting();
+  e.waitUntil(caches.open(CACHE).then(c => c.addAll(FILES.map(u => new Request(u, { cache:'reload' })))));
 });
 
 self.addEventListener('activate', e => {
@@ -12,5 +15,13 @@ self.addEventListener('activate', e => {
 });
 
 self.addEventListener('fetch', e => {
-  e.respondWith(caches.match(e.request).then(hit => hit || fetch(e.request)));
+  const req = e.request;
+  if (req.method !== 'GET' || new URL(req.url).origin !== location.origin) return;
+  const red = fetch(req, { cache:'no-cache' }).then(res => {
+    if (res.ok) { const copia = res.clone(); caches.open(CACHE).then(c => c.put(req, copia)); }
+    return res;
+  });
+  const limite = new Promise((_, no) => setTimeout(no, 4000));
+  e.respondWith(Promise.race([red, limite]).catch(() =>
+    caches.match(req, { ignoreSearch:true }).then(hit => hit || caches.match('./index.html'))));
 });
